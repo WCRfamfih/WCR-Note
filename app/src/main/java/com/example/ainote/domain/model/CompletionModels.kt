@@ -21,9 +21,13 @@ data class CompletionResult(
 )
 
 enum class AiActionType(val label: String) {
-    ContinueWriting("继续写"),
-    Summarize("总结"),
-    GenerateTitle("生成标题")
+    ContinueWriting("\u7ee7\u7eed\u5199"),
+    Expand("\u6269\u5199"),
+    Formal("\u6539\u5f97\u66f4\u6b63\u5f0f"),
+    Concise("\u6539\u5f97\u66f4\u7b80\u6d01"),
+    Todo("\u6574\u7406\u6210\u5f85\u529e"),
+    Summarize("\u603b\u7ed3"),
+    GenerateTitle("\u751f\u6210\u6807\u9898")
 }
 
 data class AiActionRequest(

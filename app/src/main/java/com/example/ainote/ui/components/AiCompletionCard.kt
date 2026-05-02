@@ -34,14 +34,14 @@ fun AiCompletionCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("AI 建议", style = MaterialTheme.typography.labelMedium)
+                Text("\u0041\u0049 \u5efa\u8bae", style = MaterialTheme.typography.labelMedium)
                 Text(text, style = MaterialTheme.typography.bodyMedium)
             }
             IconButton(onClick = onAccept) {
-                Icon(Icons.Default.Done, contentDescription = "接受补全")
+                Icon(Icons.Default.Done, contentDescription = "\u63a5\u53d7\u8865\u5168")
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "关闭补全")
+                Icon(Icons.Default.Close, contentDescription = "\u5173\u95ed\u8865\u5168")
             }
         }
     }

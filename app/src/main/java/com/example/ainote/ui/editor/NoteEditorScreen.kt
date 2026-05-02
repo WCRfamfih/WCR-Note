@@ -69,15 +69,15 @@ fun NoteEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("编辑笔记") },
+                title = { Text("\u7f16\u8f91\u7b14\u8bb0") },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.saveNow(onBack) }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "\u8fd4\u56de")
                     }
                 },
                 actions = {
                     IconButton(onClick = { showAiMenu = true }) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作")
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "\u0041\u0049 \u64cd\u4f5c")
                     }
                 }
             )
@@ -93,7 +93,7 @@ fun NoteEditorScreen(
                 value = state.title,
                 onValueChange = viewModel::updateTitle,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("标题") },
+                placeholder = { Text("\u6807\u9898") },
                 singleLine = true
             )
             Spacer(Modifier.height(12.dp))
@@ -103,11 +103,11 @@ fun NoteEditorScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                placeholder = { Text("开始写点什么...") }
+                placeholder = { Text("\u5f00\u59cb\u5199\u70b9\u4ec0\u4e48...") }
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "${state.wordCount} 字，自动保存",
+                text = "${state.wordCount} \u5b57\uff0c\u81ea\u52a8\u4fdd\u5b58",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -125,7 +125,7 @@ fun NoteEditorScreen(
             }
             state.manualAi.result?.let { result ->
                 AiActionResultCard(
-                    actionLabel = state.manualAi.actionLabel ?: "结果",
+                    actionLabel = state.manualAi.actionLabel ?: "\u7ed3\u679c",
                     text = result,
                     onAccept = viewModel::acceptManualAiResult,
                     onDismiss = viewModel::dismissManualAiResult

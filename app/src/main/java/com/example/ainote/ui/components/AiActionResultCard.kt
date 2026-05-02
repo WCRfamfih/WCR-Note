@@ -30,14 +30,14 @@ fun AiActionResultCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("AI $actionLabel", style = MaterialTheme.typography.labelMedium)
+                Text("\u0041\u0049 $actionLabel", style = MaterialTheme.typography.labelMedium)
                 Text(text, style = MaterialTheme.typography.bodyMedium)
             }
             IconButton(onClick = onAccept) {
-                Icon(Icons.Default.Done, contentDescription = "使用结果")
+                Icon(Icons.Default.Done, contentDescription = "\u4f7f\u7528\u7ed3\u679c")
             }
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "关闭结果")
+                Icon(Icons.Default.Close, contentDescription = "\u5173\u95ed\u7ed3\u679c")
             }
         }
     }

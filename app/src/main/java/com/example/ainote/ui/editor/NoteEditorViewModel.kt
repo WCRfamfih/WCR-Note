@@ -115,6 +115,10 @@ class NoteEditorViewModel(
                 selectedText = selectedText,
                 maxLength = when (actionType) {
                     AiActionType.ContinueWriting -> 120
+                    AiActionType.Expand -> 220
+                    AiActionType.Formal -> 180
+                    AiActionType.Concise -> 100
+                    AiActionType.Todo -> 180
                     AiActionType.Summarize -> 160
                     AiActionType.GenerateTitle -> 24
                 }.coerceAtMost(settings.maxCompletionLength.coerceAtLeast(24) * 4)
@@ -141,14 +145,14 @@ class NoteEditorViewModel(
                                 manualAi = ManualAiUiState(
                                     result = result.text.takeIf(String::isNotBlank),
                                     actionLabel = actionType.label,
-                                    replaceSelection = selectedText != null && actionType != AiActionType.ContinueWriting
+                                    replaceSelection = shouldReplaceSelection(actionType, selectedText)
                                 )
                             )
                         }
                     }
                 }
                 .onFailure {
-                    _uiState.update { it.copy(manualAi = ManualAiUiState(result = "AI 操作失败，请稍后重试。")) }
+                    _uiState.update { it.copy(manualAi = ManualAiUiState(result = "\u0041\u0049 \u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002")) }
                 }
         }
     }
@@ -260,6 +264,16 @@ class NoteEditorViewModel(
         val start = selection.min.coerceIn(0, text.length)
         val end = selection.max.coerceIn(0, text.length)
         return text.substring(start, end).takeIf { it.isNotBlank() }
+    }
+
+    private fun shouldReplaceSelection(actionType: AiActionType, selectedText: String?): Boolean {
+        if (selectedText == null) return false
+        return actionType in setOf(
+            AiActionType.Expand,
+            AiActionType.Formal,
+            AiActionType.Concise,
+            AiActionType.Todo
+        )
     }
 
     class Factory(
