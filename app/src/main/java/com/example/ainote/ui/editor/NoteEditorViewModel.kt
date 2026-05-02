@@ -9,6 +9,8 @@ import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
+import com.example.ainote.domain.model.AiActionRequest
+import com.example.ainote.domain.model.AiActionType
 import com.example.ainote.domain.model.Note
 import com.example.ainote.domain.usecase.BuildCompletionContextUseCase
 import com.example.ainote.domain.usecase.RequestCompletionUseCase
@@ -28,6 +30,7 @@ data class NoteEditorUiState(
     val content: TextFieldValue = TextFieldValue(""),
     val wordCount: Int = 0,
     val completion: CompletionUiState = CompletionUiState(),
+    val manualAi: ManualAiUiState = ManualAiUiState(),
     val isLoaded: Boolean = false
 )
 
@@ -39,6 +42,7 @@ class NoteEditorViewModel(
 ) : ViewModel() {
     private val buildCompletionContext = BuildCompletionContextUseCase()
     private val requestCompletion = RequestCompletionUseCase(aiRepository)
+    private val aiRepository = aiRepository
 
     private val _uiState = MutableStateFlow(NoteEditorUiState(noteId = noteId))
     val uiState: StateFlow<NoteEditorUiState> = _uiState
@@ -69,7 +73,8 @@ class NoteEditorViewModel(
             it.copy(
                 content = value,
                 wordCount = value.text.length,
-                completion = CompletionUiState()
+                completion = CompletionUiState(),
+                manualAi = it.manualAi.copy(result = null)
             )
         }
         scheduleSave()
@@ -95,6 +100,82 @@ class NoteEditorViewModel(
 
     fun requestCompletionNow() {
         scheduleCompletion(force = true)
+    }
+
+    fun runManualAction(actionType: AiActionType) {
+        completionJob?.cancel()
+        viewModelScope.launch {
+            val settings = settingsDataStore.settings.first()
+            val state = _uiState.value
+            val selectedText = state.content.selectedTextOrNull()
+            val request = AiActionRequest(
+                actionType = actionType,
+                noteTitle = state.title.ifBlank { null },
+                content = state.content.text,
+                selectedText = selectedText,
+                maxLength = when (actionType) {
+                    AiActionType.ContinueWriting -> 120
+                    AiActionType.Summarize -> 160
+                    AiActionType.GenerateTitle -> 24
+                }.coerceAtMost(settings.maxCompletionLength.coerceAtLeast(24) * 4)
+            )
+            _uiState.update {
+                it.copy(
+                    completion = CompletionUiState(),
+                    manualAi = ManualAiUiState(loading = true, actionLabel = actionType.label)
+                )
+            }
+            runCatching { aiRepository.runAction(request) }
+                .onSuccess { result ->
+                    if (actionType == AiActionType.GenerateTitle) {
+                        _uiState.update {
+                            it.copy(
+                                title = result.text,
+                                manualAi = ManualAiUiState(result = result.text, actionLabel = actionType.label)
+                            )
+                        }
+                        scheduleSave()
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                manualAi = ManualAiUiState(
+                                    result = result.text.takeIf(String::isNotBlank),
+                                    actionLabel = actionType.label,
+                                    replaceSelection = selectedText != null && actionType != AiActionType.ContinueWriting
+                                )
+                            )
+                        }
+                    }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(manualAi = ManualAiUiState(result = "AI 操作失败，请稍后重试。")) }
+                }
+        }
+    }
+
+    fun acceptManualAiResult() {
+        val state = _uiState.value
+        val result = state.manualAi.result ?: return
+        if (state.manualAi.actionLabel == AiActionType.GenerateTitle.label) {
+            dismissManualAiResult()
+            return
+        }
+        val current = state.content
+        val selection = current.selection
+        val start = if (state.manualAi.replaceSelection) selection.min else selection.start
+        val end = if (state.manualAi.replaceSelection) selection.max else selection.start
+        val insertText = if (start > 0 && current.text.getOrNull(start - 1)?.isWhitespace() == false) {
+            "\n$result"
+        } else {
+            result
+        }
+        val nextText = current.text.substring(0, start) + insertText + current.text.substring(end)
+        updateContent(TextFieldValue(nextText, selection = TextRange(start + insertText.length)))
+        dismissManualAiResult()
+    }
+
+    fun dismissManualAiResult() {
+        _uiState.update { it.copy(manualAi = ManualAiUiState()) }
     }
 
     fun saveNow(onSaved: () -> Unit = {}) {
@@ -172,6 +253,13 @@ class NoteEditorViewModel(
             cursor > 0 &&
             state.content.text.take(cursor).trim().length >= 5 &&
             state.completion.suggestion == null
+    }
+
+    private fun TextFieldValue.selectedTextOrNull(): String? {
+        if (selection.collapsed) return null
+        val start = selection.min.coerceIn(0, text.length)
+        val end = selection.max.coerceIn(0, text.length)
+        return text.substring(start, end).takeIf { it.isNotBlank() }
     }
 
     class Factory(
