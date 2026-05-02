@@ -1,0 +1,1129 @@
+# 安卓 AI 文字补全记事本策划案
+
+## 1. 项目概述
+
+我要开发一个运行在安卓端的记事本应用。
+
+它的核心不是复杂的富文本编辑，而是提供类似 VSCode AI 代码补全的 **文字补全体验**。用户在写普通文档、日记、想法、会议纪要、文章草稿时，应用能够根据当前上下文预测后续文字，并以灰色 ghost text 的方式展示。
+
+本项目的 AI 部分采用 **云端 API 方案**，不考虑本地 AI 推理。
+
+---
+
+## 2. 产品定位
+
+### 产品名称，暂定
+
+AI Note Completion
+
+### 目标用户
+
+需要频繁写作、记录、整理想法的用户，例如：
+
+* 日记用户
+* 学生
+* 内容创作者
+* 产品经理
+* 开发者
+* 会议纪要记录者
+* 需要移动端快速写草稿的人
+
+### 核心卖点
+
+这是一个 **带有 AI 文字补全能力的轻量记事本**。
+
+用户不需要每次主动点击“生成”，而是在写作过程中，系统自动预测接下来可能输入的短语或句子。
+
+---
+
+## 3. 核心功能
+
+### 3.1 普通记事本功能
+
+第一阶段必须先完成一个稳定的基础记事本。
+
+需要支持：
+
+* 新建笔记
+* 编辑笔记
+* 删除笔记
+* 自动保存
+* 笔记列表
+* 标题自动提取
+* 搜索笔记
+* 最近编辑排序
+* 深色模式
+* 字数统计
+* 本地持久化存储
+
+### 3.2 AI 文字补全功能
+
+用户在编辑文本时，应用会读取光标前后的上下文，调用云端 AI API，生成一段候选补全文字。
+
+补全内容以灰色 ghost text 展示，不直接插入正文。
+
+用户可以选择接受、忽略或继续输入。
+
+### 3.3 手动 AI 功能
+
+除了自动补全，还需要提供几个手动操作：
+
+* 继续写
+* 扩写当前段落
+* 改得更正式
+* 改得更简洁
+* 整理成待办
+* 总结当前笔记
+* 生成标题
+
+这些功能可以作为第二阶段或第三阶段实现。
+
+---
+
+# 4. 技术栈规划
+
+## 4.1 安卓客户端
+
+推荐技术栈：
+
+```text
+Kotlin
+Jetpack Compose
+Material 3
+ViewModel
+StateFlow
+Kotlin Coroutines
+Room
+DataStore
+OkHttp / Retrofit
+WorkManager，可选
+```
+
+### 说明
+
+* **Kotlin**：主开发语言。
+* **Jetpack Compose**：用于构建现代安卓 UI。
+* **Material 3**：用于统一设计风格。
+* **ViewModel + StateFlow**：管理编辑器状态、补全状态、网络请求状态。
+* **Coroutines**：处理异步保存、AI 请求、防抖、取消任务。
+* **Room**：保存笔记数据。
+* **DataStore**：保存用户设置，例如 API Key、补全开关、补全延迟。
+* **Retrofit / OkHttp**：调用云端 AI API。
+* **WorkManager**：后续用于后台同步、定期整理，不是 MVP 必需。
+
+---
+
+## 4.2 AI 云端 API
+
+AI 部分设计成可替换的接口，不绑定某一家服务。
+
+可以先抽象为：
+
+```kotlin
+interface AiCompletionService {
+    suspend fun completeText(request: CompletionRequest): CompletionResult
+    suspend fun rewriteText(request: RewriteRequest): RewriteResult
+    suspend fun summarizeText(request: SummarizeRequest): SummarizeResult
+}
+```
+
+这样后续可以替换为：
+
+```text
+OpenAI API
+Claude API
+Gemini API
+DeepSeek API
+通义千问 API
+自建代理服务
+```
+
+### 推荐架构
+
+客户端不要把业务逻辑写死在具体 API 里。
+
+应该设计为：
+
+```text
+Editor UI
+  ↓
+CompletionViewModel
+  ↓
+CompletionUseCase
+  ↓
+AiCompletionService 接口
+  ↓
+OpenAiCompletionService / OtherProviderService
+```
+
+---
+
+# 5. 应用模块划分
+
+## 5.1 UI 层
+
+负责界面展示。
+
+主要页面：
+
+```text
+NoteListScreen
+NoteEditorScreen
+SettingsScreen
+AiActionBottomSheet
+```
+
+### NoteListScreen
+
+功能：
+
+* 展示所有笔记
+* 新建笔记
+* 删除笔记
+* 搜索笔记
+* 显示更新时间
+* 显示笔记摘要
+
+### NoteEditorScreen
+
+功能：
+
+* 编辑标题
+* 编辑正文
+* 自动保存
+* 字数统计
+* 显示 AI ghost text
+* 接受 AI 补全
+* 取消 AI 补全
+* 打开 AI 操作菜单
+
+### SettingsScreen
+
+功能：
+
+* 设置 API Key
+* 设置 API Provider
+* 开启/关闭自动补全
+* 设置补全延迟
+* 设置最大补全长度
+* 设置是否允许使用当前整篇笔记作为上下文
+* 设置隐私提示
+
+---
+
+## 5.2 Domain 层
+
+负责业务逻辑。
+
+核心类：
+
+```text
+CreateNoteUseCase
+UpdateNoteUseCase
+DeleteNoteUseCase
+SearchNotesUseCase
+BuildCompletionContextUseCase
+RequestCompletionUseCase
+AcceptCompletionUseCase
+RejectCompletionUseCase
+```
+
+其中最关键的是：
+
+```text
+BuildCompletionContextUseCase
+RequestCompletionUseCase
+```
+
+---
+
+## 5.3 Data 层
+
+负责本地数据存储和 API 调用。
+
+核心内容：
+
+```text
+NoteRepository
+SettingsRepository
+AiRepository
+Room Database
+DataStore
+Api Client
+```
+
+---
+
+# 6. 数据模型设计
+
+## 6.1 Note
+
+```kotlin
+@Entity(tableName = "notes")
+data class NoteEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val title: String,
+    val content: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val pinned: Boolean = false,
+    val deleted: Boolean = false
+)
+```
+
+## 6.2 CompletionRequest
+
+```kotlin
+data class CompletionRequest(
+    val beforeCursor: String,
+    val afterCursor: String,
+    val noteTitle: String?,
+    val writingMode: WritingMode,
+    val maxLength: Int,
+    val language: String = "zh"
+)
+```
+
+## 6.3 CompletionResult
+
+```kotlin
+data class CompletionResult(
+    val text: String,
+    val confidence: Float? = null,
+    val provider: String,
+    val latencyMs: Long
+)
+```
+
+## 6.4 UserSettings
+
+```kotlin
+data class UserSettings(
+    val apiProvider: String,
+    val apiKey: String,
+    val autoCompletionEnabled: Boolean,
+    val completionDelayMs: Long,
+    val maxCompletionLength: Int,
+    val useFullNoteContext: Boolean
+)
+```
+
+---
+
+# 7. AI 文字补全工作流
+
+## 7.1 自动补全触发流程
+
+```text
+用户输入文字
+  ↓
+编辑器状态变化
+  ↓
+debounce 500ms
+  ↓
+检查是否允许触发补全
+  ↓
+构建上下文
+  ↓
+取消上一次未完成请求
+  ↓
+调用云端 AI API
+  ↓
+解析返回文本
+  ↓
+过滤候选内容
+  ↓
+显示 ghost text
+```
+
+---
+
+## 7.2 触发条件
+
+自动补全不是每次输入都触发。
+
+建议规则：
+
+```text
+用户停止输入 500ms 后触发
+当前光标前至少有 5 个中文字或 10 个英文字符
+光标不在文本开头
+当前没有正在进行中文输入法组合
+当前没有选中文本
+距离上次 API 请求至少 1 秒
+当前网络可用
+自动补全开关已开启
+```
+
+---
+
+## 7.3 不触发条件
+
+以下情况不要触发 AI 补全：
+
+```text
+用户正在快速连续输入
+文本为空
+用户正在删除文字
+当前内容太短
+当前正在输入拼音组合
+已经有 ghost text 正在展示
+当前 API Key 为空
+当前网络不可用
+用户关闭了自动补全
+```
+
+---
+
+## 7.4 上下文构建规则
+
+为了节省 token 和保护隐私，默认只发送光标附近内容。
+
+推荐策略：
+
+```text
+beforeCursor: 光标前最多 1000 个字符
+afterCursor: 光标后最多 300 个字符
+noteTitle: 当前笔记标题
+writingMode: 当前写作模式
+```
+
+如果用户开启“使用整篇笔记作为上下文”，再发送更多内容。
+
+---
+
+# 8. Prompt 设计
+
+## 8.1 自动补全 Prompt
+
+目标：生成短、自然、不打扰的后续文本。
+
+示例：
+
+```text
+你是一个中文写作补全助手。
+
+请根据用户正在编辑的笔记内容，预测光标位置后最可能继续输入的文字。
+
+要求：
+1. 只输出补全文字。
+2. 不要解释。
+3. 不要重复用户已经写过的内容。
+4. 补全内容要自然接在光标位置之后。
+5. 长度控制在 5 到 30 个中文字之间。
+6. 不要主动改变写作主题。
+7. 如果上下文不足，请输出空字符串。
+
+笔记标题：
+{{noteTitle}}
+
+光标前内容：
+{{beforeCursor}}
+
+光标后内容：
+{{afterCursor}}
+
+请输出补全文字：
+```
+
+---
+
+## 8.2 继续写 Prompt
+
+```text
+你是一个写作助手。
+
+请根据以下笔记内容继续写一小段。
+
+要求：
+1. 保持原有语气。
+2. 不要重复已有内容。
+3. 不要写得太长。
+4. 输出 1 到 3 句话。
+5. 只输出续写内容。
+
+笔记内容：
+{{content}}
+```
+
+---
+
+## 8.3 改得更正式 Prompt
+
+```text
+请将以下内容改写得更正式。
+
+要求：
+1. 保留原意。
+2. 不添加新的事实。
+3. 语言清晰自然。
+4. 只输出改写后的内容。
+
+原文：
+{{selectedText}}
+```
+
+---
+
+## 8.4 整理成待办 Prompt
+
+```text
+请将以下内容整理成待办事项列表。
+
+要求：
+1. 使用简洁的待办格式。
+2. 每一项以“- [ ]”开头。
+3. 不添加原文中不存在的任务。
+4. 只输出待办列表。
+
+内容：
+{{content}}
+```
+
+---
+
+# 9. AI 返回内容过滤规则
+
+云端 API 返回内容后，不能直接展示。需要过滤。
+
+## 9.1 基础过滤
+
+```text
+去除首尾空白
+去除引号
+去除 Markdown 代码块
+去除“补全文字：”之类前缀
+如果返回内容重复 beforeCursor 末尾，则裁剪重复部分
+如果返回内容超过最大长度，则截断
+如果返回内容为空，则不展示
+```
+
+## 9.2 内容质量过滤
+
+不要展示以下补全：
+
+```text
+和已有文本重复度太高
+明显答非所问
+包含解释性文字
+包含“好的”“当然可以”等聊天式开头
+过长
+包含换行过多
+```
+
+---
+
+# 10. 编辑器交互设计
+
+## 10.1 Ghost Text
+
+在正文输入框中，AI 补全文字以浅灰色显示在光标后方。
+
+例如：
+
+```text
+我今天准备先整理一下项目需求，并列出后续开发计划
+                    ↑ 灰色部分为 AI 补全
+```
+
+用户可以：
+
+```text
+点击 ghost text 接受
+点击工具栏“接受”按钮
+向右滑动接受
+继续输入则 ghost text 消失
+点击空白处取消
+```
+
+MVP 阶段如果 ghost text 实现困难，可以先退一步：
+
+```text
+在输入框下方显示一个补全候选卡片
+点击候选卡片插入文本
+```
+
+这个更容易实现，体验略弱，但适合第一版。
+
+---
+
+## 10.2 自动保存
+
+编辑内容变化后：
+
+```text
+debounce 800ms
+自动保存到 Room
+更新 updatedAt
+刷新笔记列表排序
+```
+
+注意：自动保存和 AI 补全要分开处理，不能互相阻塞。
+
+---
+
+# 11. 网络请求策略
+
+## 11.1 防抖
+
+用户输入时不要立即请求 API。
+
+建议：
+
+```text
+输入停止 500ms 后再请求补全
+```
+
+## 11.2 取消旧请求
+
+如果用户继续输入，新输入会让之前的补全失效。
+
+需要：
+
+```text
+每次新输入后取消上一个 completion job
+只保留最新请求结果
+```
+
+## 11.3 超时
+
+自动补全必须快。
+
+建议：
+
+```text
+自动补全 API 超时：3 秒
+手动 AI 操作 API 超时：15 秒
+```
+
+如果超时，静默失败，不要弹窗打扰用户。
+
+## 11.4 错误处理
+
+自动补全错误不要打扰用户。
+
+规则：
+
+```text
+网络错误：静默失败
+API Key 错误：在设置页提示
+余额不足：提示用户检查服务商账户
+限流：短时间暂停自动补全
+```
+
+---
+
+# 12. 隐私与安全设计
+
+由于记事本内容可能非常私人，必须明确告诉用户：
+
+```text
+启用 AI 补全后，应用会将光标附近文本发送到所选 AI 服务商。
+默认只发送光标附近内容，不发送整篇笔记。
+用户可以关闭自动补全。
+用户可以选择是否允许发送整篇笔记作为上下文。
+API Key 保存在本地设备。
+```
+
+设置页需要有：
+
+```text
+AI 自动补全开关
+发送上下文范围设置
+清除 API Key
+隐私说明
+```
+
+---
+
+# 13. 分阶段开发计划
+
+## 阶段一：基础记事本 MVP
+
+目标：先做一个稳定可用的安卓记事本。
+
+### 功能
+
+```text
+笔记列表
+新建笔记
+编辑笔记
+删除笔记
+自动保存
+本地数据库
+搜索笔记
+设置页
+深色模式
+```
+
+### 验收标准
+
+```text
+用户可以创建一篇笔记
+用户可以编辑正文
+关闭应用后再次打开，内容仍然存在
+笔记列表按更新时间排序
+用户可以删除笔记
+用户可以搜索笔记内容
+```
+
+---
+
+## 阶段二：AI API 配置与手动 AI 功能
+
+目标：先接通云端 API，但不做自动补全。
+
+### 功能
+
+```text
+设置 API Provider
+设置 API Key
+测试 API 是否可用
+在编辑器中添加 AI 操作按钮
+支持“继续写”
+支持“总结”
+支持“生成标题”
+```
+
+### 验收标准
+
+```text
+用户可以在设置页保存 API Key
+用户可以点击测试连接
+用户可以在笔记中点击“继续写”
+AI 返回内容可以插入当前光标位置
+AI 请求失败时有合理提示
+```
+
+---
+
+## 阶段三：自动文字补全
+
+目标：实现类似 VSCode 的 AI 补全体验。
+
+### 功能
+
+```text
+监听用户输入
+防抖触发
+构建上下文
+调用 AI API
+显示补全候选
+接受补全
+取消补全
+继续输入时自动隐藏补全
+```
+
+### 验收标准
+
+```text
+用户停止输入后，系统能生成补全文字
+补全文字不会直接插入正文
+用户可以点击接受补全
+用户继续输入时，旧补全自动消失
+连续输入不会频繁请求 API
+```
+
+---
+
+## 阶段四：Ghost Text 优化
+
+目标：把候选卡片升级为编辑器内 ghost text。
+
+### 功能
+
+```text
+在光标后方显示灰色补全文字
+支持点击或滑动接受
+支持一键忽略
+补全文字跟随光标变化
+```
+
+### 验收标准
+
+```text
+ghost text 显示位置自然
+不影响正常输入
+用户接受后补全文字插入光标位置
+用户输入新内容时 ghost text 消失
+```
+
+---
+
+## 阶段五：写作增强功能
+
+目标：让它不只是补全工具，而是完整 AI 写作记事本。
+
+### 功能
+
+```text
+选中文本后改写
+扩写当前段落
+改得更正式
+改得更简洁
+整理成待办
+总结当前笔记
+生成标题
+```
+
+### 验收标准
+
+```text
+用户可以选中文本后调用 AI 操作
+AI 返回结果可以替换选中文本
+AI 返回结果也可以作为新内容插入
+用户可以取消操作
+```
+
+---
+
+# 14. 适合给 AI 编程助手的任务拆分
+
+下面这些可以逐条作为 vibe coding 指令使用。
+
+---
+
+## Task 1：创建安卓 Compose 项目基础结构
+
+```text
+请创建一个 Kotlin + Jetpack Compose 安卓项目结构。
+
+要求：
+1. 使用 MVVM 架构。
+2. 创建 data、domain、ui、di 四个主要包。
+3. 使用 Material 3。
+4. 添加基础导航，包括 NoteListScreen、NoteEditorScreen、SettingsScreen。
+5. 暂时使用假数据展示页面。
+```
+
+---
+
+## Task 2：实现 Room 笔记数据库
+
+```text
+请为项目添加 Room 数据库。
+
+要求：
+1. 创建 NoteEntity。
+2. 字段包括 id、title、content、createdAt、updatedAt、pinned、deleted。
+3. 创建 NoteDao。
+4. 支持 insert、update、soft delete、get all notes、search notes。
+5. 创建 NoteRepository。
+6. 使用 Flow 返回笔记列表。
+```
+
+---
+
+## Task 3：实现笔记列表页面
+
+```text
+请实现 NoteListScreen。
+
+要求：
+1. 从 NoteRepository 读取笔记列表。
+2. 按 updatedAt 倒序显示。
+3. 显示标题、摘要、更新时间。
+4. 点击笔记进入编辑页。
+5. 提供新建笔记按钮。
+6. 支持搜索。
+7. 支持删除笔记。
+```
+
+---
+
+## Task 4：实现笔记编辑页面
+
+```text
+请实现 NoteEditorScreen。
+
+要求：
+1. 使用 Compose TextField 或 BasicTextField 编辑正文。
+2. 支持标题编辑。
+3. 内容变化后 debounce 800ms 自动保存。
+4. 显示字数统计。
+5. 支持返回列表页。
+6. 暂时不接入 AI。
+```
+
+---
+
+## Task 5：实现设置页和 DataStore
+
+```text
+请实现 SettingsScreen 和 DataStore 设置存储。
+
+设置项包括：
+1. apiProvider。
+2. apiKey。
+3. autoCompletionEnabled。
+4. completionDelayMs。
+5. maxCompletionLength。
+6. useFullNoteContext。
+
+要求：
+1. 设置项持久化保存。
+2. API Key 输入框支持隐藏/显示。
+3. 自动补全开关可切换。
+```
+
+---
+
+## Task 6：实现 AI 服务接口
+
+```text
+请实现 AI 服务抽象层。
+
+要求：
+1. 创建 AiCompletionService 接口。
+2. 创建 CompletionRequest、CompletionResult 数据类。
+3. 创建 AiRepository。
+4. 暂时创建 FakeAiCompletionService，用于返回固定补全文字。
+5. 后续可以替换为真实云端 API。
+```
+
+---
+
+## Task 7：接入真实云端 API
+
+```text
+请实现一个云端 AI API Provider。
+
+要求：
+1. 使用 Retrofit 或 OkHttp。
+2. 从 DataStore 读取 API Key。
+3. 支持 completeText 方法。
+4. 请求时传入 beforeCursor、afterCursor、noteTitle、maxLength。
+5. 返回结果转换为 CompletionResult。
+6. 处理网络错误、超时、API Key 错误。
+7. 不要把 API Key 写死在代码里。
+```
+
+---
+
+## Task 8：实现手动“继续写”
+
+```text
+请在 NoteEditorScreen 中添加 AI 操作按钮。
+
+要求：
+1. 点击按钮弹出操作菜单。
+2. 菜单包含“继续写”。
+3. 点击“继续写”后调用 AiCompletionService。
+4. 将 AI 返回内容插入当前光标位置。
+5. 请求中显示 loading 状态。
+6. 请求失败时显示 Snackbar。
+```
+
+---
+
+## Task 9：实现自动补全调度器
+
+```text
+请实现自动补全调度逻辑。
+
+要求：
+1. 监听编辑器文本变化。
+2. 使用 debounce，根据 settings.completionDelayMs 延迟触发。
+3. 用户继续输入时取消上一个补全请求。
+4. 当前文本太短时不触发。
+5. API Key 为空时不触发。
+6. autoCompletionEnabled 为 false 时不触发。
+7. 请求成功后保存 CompletionResult 到 UI state。
+```
+
+---
+
+## Task 10：实现补全候选卡片
+
+```text
+请在 NoteEditorScreen 中显示 AI 补全候选卡片。
+
+要求：
+1. 当有 CompletionResult 时，在编辑器下方显示候选卡片。
+2. 卡片显示补全文字。
+3. 用户点击卡片后，将补全文字插入当前光标位置。
+4. 用户继续输入时，隐藏旧候选。
+5. 提供关闭按钮。
+```
+
+---
+
+## Task 11：实现 Ghost Text
+
+```text
+请将补全候选卡片升级为 ghost text 显示。
+
+要求：
+1. 在编辑器中以浅灰色显示 AI 补全文字。
+2. ghost text 出现在当前光标之后。
+3. 不要真正插入正文。
+4. 用户点击接受后才插入正文。
+5. 用户继续输入或移动光标时，ghost text 消失。
+6. 如果实现难度过高，请保留候选卡片作为 fallback。
+```
+
+---
+
+## Task 12：实现 AI 操作菜单
+
+```text
+请扩展 AI 操作菜单。
+
+功能包括：
+1. 继续写。
+2. 扩写。
+3. 改得更正式。
+4. 改得更简洁。
+5. 整理成待办。
+6. 总结。
+7. 生成标题。
+
+要求：
+1. 如果用户选中了文本，则优先对选中文本操作。
+2. 如果没有选中文本，则对当前段落或整篇笔记操作。
+3. AI 返回结果允许用户选择插入、替换或取消。
+```
+
+---
+
+# 15. 项目目录建议
+
+```text
+app/src/main/java/com/example/ainote/
+  data/
+    local/
+      NoteDao.kt
+      NoteDatabase.kt
+      NoteEntity.kt
+    settings/
+      SettingsDataStore.kt
+      UserSettings.kt
+    remote/
+      AiApiClient.kt
+      AiCompletionService.kt
+      OpenAiCompletionService.kt
+    repository/
+      NoteRepository.kt
+      AiRepository.kt
+
+  domain/
+    model/
+      Note.kt
+      CompletionRequest.kt
+      CompletionResult.kt
+    usecase/
+      CreateNoteUseCase.kt
+      UpdateNoteUseCase.kt
+      SearchNotesUseCase.kt
+      RequestCompletionUseCase.kt
+      BuildCompletionContextUseCase.kt
+
+  ui/
+    navigation/
+      AppNavGraph.kt
+    notes/
+      NoteListScreen.kt
+      NoteListViewModel.kt
+    editor/
+      NoteEditorScreen.kt
+      NoteEditorViewModel.kt
+      CompletionUiState.kt
+    settings/
+      SettingsScreen.kt
+      SettingsViewModel.kt
+    components/
+      AiCompletionCard.kt
+      AiActionBottomSheet.kt
+      GhostTextEditor.kt
+
+  di/
+    AppModule.kt
+```
+
+---
+
+# 16. MVP 优先级排序
+
+强烈建议按这个顺序做：
+
+```text
+1. 普通记事本
+2. 设置页保存 API Key
+3. Fake AI 补全服务
+4. 手动继续写
+5. 真实 API 接入
+6. 自动补全候选卡片
+7. ghost text
+8. 改写、总结、待办等高级功能
+```
+
+不要一开始就死磕 ghost text。移动端编辑器叠加 ghost text 会比较烦，容易和中文输入法、光标、选区打架。
+
+第一版可以先做成：
+
+```text
+用户停止输入后，编辑器下方出现一张“AI 建议”卡片。
+点击卡片后插入。
+```
+
+这就已经能验证核心体验了。
+
+---
+
+# 17. 推荐的开发原则
+
+## 17.1 AI 补全要短
+
+自动补全建议控制在：
+
+```text
+5 到 30 个中文字
+```
+
+不要自动生成大段内容。
+
+## 17.2 自动补全要安静
+
+自动补全失败时不要频繁弹错误。
+
+```text
+失败就静默失败。
+设置错误才提示。
+```
+
+## 17.3 用户永远掌控文本
+
+AI 返回内容不能自动写入正文。
+
+必须用户明确接受后才插入。
+
+## 17.4 云端 API 要可替换
+
+不要把某个服务商写死。
+
+应该通过接口抽象：
+
+```text
+AiCompletionService
+```
+
+后面切换 OpenAI、Claude、Gemini、DeepSeek 都方便。
+
+## 17.5 隐私提示要明确
+
+设置页必须写清楚：
+
+```text
+启用 AI 功能后，应用会将部分笔记内容发送到云端 AI 服务商。
+```
+
+---
+
+# 18. 最终一句话目标
+
+这个项目的第一阶段目标不是做一个“全能 AI 写作软件”，而是做一个：
+
+> 稳定、轻量、可以写普通笔记，并且偶尔能在用户刚好需要时给出一句自然补全的安卓记事本。
+
+这才是 MVP 的核心。

@@ -1,0 +1,58 @@
+package com.example.ainote.data.settings
+
+import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.settingsDataStore by preferencesDataStore(name = "user_settings")
+
+class SettingsDataStore(private val context: Context) {
+    val settings: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
+        UserSettings(
+            apiProvider = prefs[Keys.ApiProvider] ?: "Fake",
+            apiKey = prefs[Keys.ApiKey] ?: "",
+            autoCompletionEnabled = prefs[Keys.AutoCompletionEnabled] ?: true,
+            completionDelayMs = prefs[Keys.CompletionDelayMs] ?: 700,
+            maxCompletionLength = prefs[Keys.MaxCompletionLength] ?: 30,
+            useFullNoteContext = prefs[Keys.UseFullNoteContext] ?: false
+        )
+    }
+
+    suspend fun updateApiProvider(value: String) = updateString(Keys.ApiProvider, value)
+    suspend fun updateApiKey(value: String) = updateString(Keys.ApiKey, value)
+    suspend fun updateAutoCompletionEnabled(value: Boolean) = updateBoolean(Keys.AutoCompletionEnabled, value)
+    suspend fun updateCompletionDelayMs(value: Long) = updateLong(Keys.CompletionDelayMs, value)
+    suspend fun updateMaxCompletionLength(value: Int) = updateInt(Keys.MaxCompletionLength, value)
+    suspend fun updateUseFullNoteContext(value: Boolean) = updateBoolean(Keys.UseFullNoteContext, value)
+
+    private suspend fun updateString(key: androidx.datastore.preferences.core.Preferences.Key<String>, value: String) {
+        context.settingsDataStore.edit { it[key] = value }
+    }
+
+    private suspend fun updateBoolean(key: androidx.datastore.preferences.core.Preferences.Key<Boolean>, value: Boolean) {
+        context.settingsDataStore.edit { it[key] = value }
+    }
+
+    private suspend fun updateLong(key: androidx.datastore.preferences.core.Preferences.Key<Long>, value: Long) {
+        context.settingsDataStore.edit { it[key] = value }
+    }
+
+    private suspend fun updateInt(key: androidx.datastore.preferences.core.Preferences.Key<Int>, value: Int) {
+        context.settingsDataStore.edit { it[key] = value }
+    }
+
+    private object Keys {
+        val ApiProvider = stringPreferencesKey("api_provider")
+        val ApiKey = stringPreferencesKey("api_key")
+        val AutoCompletionEnabled = booleanPreferencesKey("auto_completion_enabled")
+        val CompletionDelayMs = longPreferencesKey("completion_delay_ms")
+        val MaxCompletionLength = intPreferencesKey("max_completion_length")
+        val UseFullNoteContext = booleanPreferencesKey("use_full_note_context")
+    }
+}
