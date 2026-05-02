@@ -39,6 +39,7 @@ fun AppNavGraph(container: AppContainer) {
         composable("settings") {
             SettingsScreen(
                 dataStore = container.settingsDataStore,
+                aiRepository = container.aiRepository,
                 onBack = { navController.popBackStack() }
             )
         }

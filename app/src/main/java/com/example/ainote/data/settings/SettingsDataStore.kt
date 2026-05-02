@@ -17,6 +17,8 @@ class SettingsDataStore(private val context: Context) {
         UserSettings(
             apiProvider = prefs[Keys.ApiProvider] ?: "Fake",
             apiKey = prefs[Keys.ApiKey] ?: "",
+            apiBaseUrl = prefs[Keys.ApiBaseUrl] ?: "https://api.openai.com/v1/chat/completions",
+            apiModel = prefs[Keys.ApiModel] ?: "gpt-4o-mini",
             autoCompletionEnabled = prefs[Keys.AutoCompletionEnabled] ?: true,
             completionDelayMs = prefs[Keys.CompletionDelayMs] ?: 700,
             maxCompletionLength = prefs[Keys.MaxCompletionLength] ?: 30,
@@ -26,6 +28,8 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun updateApiProvider(value: String) = updateString(Keys.ApiProvider, value)
     suspend fun updateApiKey(value: String) = updateString(Keys.ApiKey, value)
+    suspend fun updateApiBaseUrl(value: String) = updateString(Keys.ApiBaseUrl, value)
+    suspend fun updateApiModel(value: String) = updateString(Keys.ApiModel, value)
     suspend fun updateAutoCompletionEnabled(value: Boolean) = updateBoolean(Keys.AutoCompletionEnabled, value)
     suspend fun updateCompletionDelayMs(value: Long) = updateLong(Keys.CompletionDelayMs, value)
     suspend fun updateMaxCompletionLength(value: Int) = updateInt(Keys.MaxCompletionLength, value)
@@ -50,6 +54,8 @@ class SettingsDataStore(private val context: Context) {
     private object Keys {
         val ApiProvider = stringPreferencesKey("api_provider")
         val ApiKey = stringPreferencesKey("api_key")
+        val ApiBaseUrl = stringPreferencesKey("api_base_url")
+        val ApiModel = stringPreferencesKey("api_model")
         val AutoCompletionEnabled = booleanPreferencesKey("auto_completion_enabled")
         val CompletionDelayMs = longPreferencesKey("completion_delay_ms")
         val MaxCompletionLength = intPreferencesKey("max_completion_length")

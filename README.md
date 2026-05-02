@@ -1,28 +1,42 @@
 # AI Note Completion
 
-安卓端 AI 文字补全记事本 MVP。
+Android AI writing note MVP.
 
-## 已实现
+## Implemented
 
-- Kotlin + Jetpack Compose + Material 3 项目结构
-- MVVM 分层，包含 `data`、`domain`、`ui`、`di`
-- Room 本地笔记数据库
-- DataStore 用户设置
-- 笔记列表、新建、编辑、删除、搜索、最近编辑排序
-- 编辑页 800ms 自动保存、标题自动提取、字数统计
-- 深色模式跟随系统
-- Fake AI 补全服务与候选卡片，点击后插入光标位置
-- 编辑器 AI 操作菜单：继续写、扩写、改得更正式、改得更简洁、整理成待办、总结、生成标题
-- 手动 AI 操作结果卡片，支持确认插入或关闭
-- 选中文本后执行扩写、改写或整理待办时，确认后会替换选区
-- 设置页保存 API Provider、API Key、自动补全、补全延迟、最大长度、上下文范围
+- Kotlin + Jetpack Compose + Material 3 project structure
+- MVVM layers with `data`, `domain`, `ui`, and `di`
+- Room local note database
+- DataStore user settings
+- Note list, create, edit, delete, search, and recent-edit sorting
+- Editor auto-save after 800 ms, title extraction, and character count
+- System dark mode support
+- Fake AI completion card; tap to insert at cursor
+- Editor AI action menu: continue writing, expand, make formal, make concise, turn into todos, summarize, generate title
+- Manual AI result card with accept and dismiss
+- Selected text replacement for expand, rewrite, and todo actions
+- Settings for API Provider, API Key, API Base URL, Model, auto completion, delay, max completion length, and context range
+- OpenAI-compatible Chat Completions API support
+- Fake service fallback when Provider is `Fake` or API Key is empty
+- API connection test in settings
 
-## 运行
+## Run
 
-用 Android Studio 打开项目根目录并同步 Gradle。当前仓库没有 Gradle Wrapper，本机也未检测到 Android SDK 环境变量；建议在 Android Studio 中使用内置 Gradle 运行 `app`。
+Open the project root in Android Studio, sync Gradle, then run the `app` configuration on an emulator or Android device.
 
-## 后续优先级
+## Current API Setup
 
-1. 接入真实云端 API Provider。
-2. 接入真实云端 API Provider。
-3. 将候选卡片升级为编辑器内 ghost text。
+Use `Fake` as API Provider to keep everything local.
+
+For a real OpenAI-compatible provider:
+
+- API Provider: any non-`Fake` value, for example `OpenAI`
+- API Base URL: provider chat completions endpoint, for example `https://api.openai.com/v1/chat/completions`
+- Model: the model name supported by that provider
+- API Key: your provider API key
+
+## Next Priorities
+
+1. Add better API error messages and request throttling.
+2. Upgrade completion cards to in-editor ghost text.
+3. Add provider presets such as OpenAI, DeepSeek, and Qwen.
