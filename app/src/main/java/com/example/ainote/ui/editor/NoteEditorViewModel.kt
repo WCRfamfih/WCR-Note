@@ -107,6 +107,22 @@ class NoteEditorViewModel(
         scheduleCompletion(force = true)
     }
 
+    fun applyMarkdownFormat(action: MarkdownFormatAction) {
+        val current = _uiState.value.content
+        val next = when (action) {
+            MarkdownFormatAction.Outdent -> transformSelectedLines(current, ::outdentLine)
+            MarkdownFormatAction.Indent -> transformSelectedLines(current) { "    $it" }
+            MarkdownFormatAction.Heading1 -> toggleHeading(current, 1)
+            MarkdownFormatAction.Heading2 -> toggleHeading(current, 2)
+            MarkdownFormatAction.Heading3 -> toggleHeading(current, 3)
+            MarkdownFormatAction.Bold -> toggleInlineWrapper(current, "**", "**")
+            MarkdownFormatAction.Italic -> toggleInlineWrapper(current, "*", "*")
+            MarkdownFormatAction.Strike -> toggleInlineWrapper(current, "~~", "~~")
+            MarkdownFormatAction.Underline -> toggleInlineWrapper(current, "<u>", "</u>")
+        }
+        updateContent(next)
+    }
+
     fun runManualAction(actionType: AiActionType) {
         completionJob?.cancel()
         viewModelScope.launch {
@@ -309,6 +325,101 @@ class NoteEditorViewModel(
 
     private fun containsChinese(text: String): Boolean {
         return text.any { it in '\u4e00'..'\u9fff' }
+    }
+
+    private fun transformSelectedLines(
+        value: TextFieldValue,
+        transform: (String) -> String
+    ): TextFieldValue {
+        val text = value.text
+        val range = targetLineRange(value)
+        val block = text.substring(range.first, range.second)
+        val transformed = block.split('\n').joinToString("\n", transform = transform)
+        return replaceTarget(value, range.first, range.second, transformed)
+    }
+
+    private fun targetLineRange(value: TextFieldValue): Pair<Int, Int> {
+        val text = value.text
+        if (text.isEmpty()) return 0 to 0
+        val start = if (value.selection.collapsed) value.selection.start else value.selection.min
+        val end = if (value.selection.collapsed) value.selection.start else value.selection.max
+        val lineStart = if (start == 0) {
+            0
+        } else {
+            text.lastIndexOf('\n', start - 1).let { if (it == -1) 0 else it + 1 }
+        }
+        val searchFrom = if (!value.selection.collapsed && end > start && text.getOrNull(end - 1) == '\n') {
+            (end - 1).coerceAtLeast(lineStart)
+        } else {
+            end.coerceAtLeast(lineStart)
+        }
+        val lineEnd = text.indexOf('\n', searchFrom).let { if (it == -1) text.length else it }
+        return lineStart to lineEnd
+    }
+
+    private fun outdentLine(line: String): String {
+        return when {
+            line.startsWith("    ") -> line.drop(4)
+            line.startsWith("\t") -> line.drop(1)
+            line.startsWith("  ") -> line.drop(2)
+            line.startsWith(" ") -> line.drop(1)
+            else -> line
+        }
+    }
+
+    private fun toggleHeading(value: TextFieldValue, level: Int): TextFieldValue {
+        val text = value.text
+        val range = targetLineRange(value)
+        val block = text.substring(range.first, range.second)
+        val lines = block.split('\n')
+        val prefix = "${"#".repeat(level)} "
+        val nonBlankLines = lines.filter { it.isNotBlank() }
+        val removeHeading = nonBlankLines.isNotEmpty() && nonBlankLines.all { it.startsWith(prefix) }
+        val transformed = lines.joinToString("\n") { line ->
+            if (line.isBlank()) {
+                line
+            } else {
+                val content = line.replace(Regex("^\\s{0,3}#{1,6}\\s+"), "").trimStart()
+                if (removeHeading) content else "$prefix$content"
+            }
+        }
+        return replaceTarget(value, range.first, range.second, transformed)
+    }
+
+    private fun toggleInlineWrapper(
+        value: TextFieldValue,
+        prefix: String,
+        suffix: String
+    ): TextFieldValue {
+        val range = if (value.selection.collapsed) {
+            targetLineRange(value)
+        } else {
+            value.selection.min to value.selection.max
+        }
+        val text = value.text
+        val target = text.substring(range.first, range.second)
+        val transformed = if (target.startsWith(prefix) && target.endsWith(suffix) && target.length >= prefix.length + suffix.length) {
+            target.removePrefix(prefix).removeSuffix(suffix)
+        } else {
+            "$prefix$target$suffix"
+        }
+        return replaceTarget(value, range.first, range.second, transformed, selectReplacement = true)
+    }
+
+    private fun replaceTarget(
+        value: TextFieldValue,
+        start: Int,
+        end: Int,
+        replacement: String,
+        selectReplacement: Boolean = !value.selection.collapsed
+    ): TextFieldValue {
+        val nextText = value.text.replaceRange(start, end, replacement)
+        val nextSelection = if (selectReplacement) {
+            TextRange(start, start + replacement.length)
+        } else {
+            TextRange(start + replacement.length)
+        }
+        return value.copy(text = nextText, selection = nextSelection)
     }
 
     private fun TextFieldValue.selectedTextOrNull(): String? {

@@ -32,6 +32,7 @@ Android AI writing note MVP.
 - In-editor ghost text for completion when the cursor is at the end of a line
 - Floating ghost-text controls for accept, dismiss, and retry
 - Completion card fallback when ghost text cannot be displayed safely
+- Markdown document assist toolbar above the keyboard for indent, headings, bold, italic, strikethrough, and underline
 
 ## Run
 

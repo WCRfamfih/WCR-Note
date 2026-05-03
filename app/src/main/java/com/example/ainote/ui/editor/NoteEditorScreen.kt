@@ -5,9 +5,12 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,6 +44,7 @@ import com.example.ainote.ui.components.AiActionBottomSheet
 import com.example.ainote.ui.components.AiActionResultCard
 import com.example.ainote.ui.components.AiCompletionCard
 import com.example.ainote.ui.components.AiStatusCard
+import com.example.ainote.ui.components.DocumentAssistToolbar
 import com.example.ainote.ui.components.GhostTextEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,10 +63,13 @@ fun NoteEditorScreen(
     val state by viewModel.uiState.collectAsState()
     val settings by settingsDataStore.settings.collectAsState(initial = UserSettings())
     val clipboardManager = LocalClipboardManager.current
+    val density = LocalDensity.current
     var showAiMenu by remember { mutableStateOf(false) }
+    var bodyFocused by remember { mutableStateOf(false) }
     val canShowGhostText = state.completion.suggestion != null &&
         state.content.selection.collapsed &&
         canShowInlineGhostText(state.content)
+    val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
 
     BackHandler {
         viewModel.saveNow(onBack)
@@ -95,6 +103,14 @@ fun NoteEditorScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (bodyFocused && keyboardVisible) {
+                DocumentAssistToolbar(
+                    onAction = viewModel::applyMarkdownFormat,
+                    modifier = Modifier.imePadding()
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -121,7 +137,8 @@ fun NoteEditorScreen(
                 textSizeSp = settings.editorTextSizeSp,
                 onAcceptGhostText = viewModel::acceptCompletion,
                 onDismissGhostText = viewModel::dismissCompletion,
-                onRetryGhostText = viewModel::retryCompletion
+                onRetryGhostText = viewModel::retryCompletion,
+                onFocusChanged = { bodyFocused = it }
             )
             Spacer(Modifier.height(8.dp))
             Text(

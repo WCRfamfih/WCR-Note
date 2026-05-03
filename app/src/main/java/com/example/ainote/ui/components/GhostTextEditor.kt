@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -43,7 +44,8 @@ fun GhostTextEditor(
     textSizeSp: Int,
     onAcceptGhostText: () -> Unit,
     onDismissGhostText: () -> Unit,
-    onRetryGhostText: () -> Unit
+    onRetryGhostText: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val textStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -64,6 +66,7 @@ fun GhostTextEditor(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxSize()
+                .onFocusChanged { onFocusChanged(it.isFocused) }
                 .verticalScroll(scrollState),
             textStyle = textStyle,
             cursorBrush = SolidColor(colorScheme.primary),
