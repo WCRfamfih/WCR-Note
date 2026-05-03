@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,8 +32,18 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +70,9 @@ fun GhostTextEditor(
         fontSize = textSizeSp.sp
     )
     val ghostStyle = textStyle.copy(color = colorScheme.onSurfaceVariant.copy(alpha = 0.48f))
+    val visualTransformation = remember(textStyle, colorScheme) {
+        markdownVisualTransformation(textStyle, colorScheme)
+    }
     var cursorRect by remember { mutableStateOf(Rect.Zero) }
     var editorSize by remember { mutableStateOf(IntSize.Zero) }
     var controlsSize by remember { mutableStateOf(IntSize.Zero) }
@@ -76,6 +90,7 @@ fun GhostTextEditor(
                 .fillMaxWidth()
                 .onFocusChanged { onFocusChanged(it.isFocused) },
             textStyle = textStyle,
+            visualTransformation = visualTransformation,
             cursorBrush = SolidColor(colorScheme.primary),
             onTextLayout = { layoutResult ->
                 cursorRect = layoutResult.getCursorRect(value.selection.start)
@@ -152,5 +167,92 @@ fun GhostTextEditor(
                 }
             }
         }
+    }
+}
+
+private fun markdownVisualTransformation(
+    textStyle: TextStyle,
+    colorScheme: ColorScheme
+): VisualTransformation = VisualTransformation { text ->
+    val inputText = text.text
+    val builder = AnnotatedString.Builder(inputText)
+    val baseStyle = SpanStyle(
+        color = textStyle.color,
+        fontSize = textStyle.fontSize,
+        fontWeight = textStyle.fontWeight,
+        fontStyle = textStyle.fontStyle,
+        textDecoration = textStyle.textDecoration,
+        fontFamily = textStyle.fontFamily
+    )
+    val headingSize = textStyle.fontSize.takeIf { it != TextUnit.Unspecified } ?: 18.sp
+
+    val headingRegex = Regex("^(#{1,3})\\s+.*$", RegexOption.MULTILINE)
+    headingRegex.findAll(inputText).forEach { match ->
+        val level = match.groupValues[1].length
+        val lineStart = match.range.first
+        val lineEnd = match.range.last + 1
+        val size = when (level) {
+            1 -> headingSize * 1.45f
+            2 -> headingSize * 1.25f
+            else -> headingSize * 1.1f
+        }
+        builder.addStyle(
+            baseStyle.copy(fontSize = size, fontWeight = FontWeight.SemiBold),
+            lineStart,
+            lineEnd
+        )
+    }
+
+    applyMarkdownWrapper(
+        inputText,
+        builder,
+        regex = Regex("\\*\\*(.+?)\\*\\*"),
+        style = baseStyle.copy(fontWeight = FontWeight.Bold)
+    )
+    applyMarkdownWrapper(
+        inputText,
+        builder,
+        regex = Regex("~~(.+?)~~"),
+        style = baseStyle.copy(textDecoration = TextDecoration.LineThrough)
+    )
+    applyMarkdownWrapper(
+        inputText,
+        builder,
+        regex = Regex("<u>(.+?)</u>"),
+        style = baseStyle.copy(textDecoration = TextDecoration.Underline)
+    )
+    applyMarkdownWrapper(
+        inputText,
+        builder,
+        regex = Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"),
+        style = baseStyle.copy(fontStyle = FontStyle.Italic)
+    )
+
+    TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+}
+
+private fun applyMarkdownWrapper(
+    text: String,
+    builder: AnnotatedString.Builder,
+    regex: Regex,
+    style: SpanStyle
+) {
+    regex.findAll(text).forEach { matchResult ->
+        val innerGroup = matchResult.groups[1] ?: return@forEach
+        val openMarkerStart = matchResult.range.first
+        val innerStart = innerGroup.range.first
+        val innerEnd = innerGroup.range.last + 1
+        val closeMarkerEnd = matchResult.range.last + 1
+        builder.addStyle(style, innerStart, innerEnd)
+        builder.addStyle(
+            style.copy(color = style.color.copy(alpha = 0.72f)),
+            openMarkerStart,
+            innerStart
+        )
+        builder.addStyle(
+            style.copy(color = style.color.copy(alpha = 0.72f)),
+            innerEnd,
+            closeMarkerEnd
+        )
     }
 }

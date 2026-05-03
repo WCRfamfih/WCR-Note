@@ -22,9 +22,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -93,7 +94,7 @@ fun NoteEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("\u7f16\u8f91\u7b14\u8bb0") },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = { viewModel.saveNow(onBack) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "\u8fd4\u56de")
@@ -110,11 +111,25 @@ fun NoteEditorScreen(
             )
         },
         bottomBar = {
-            if (bodyFocused && keyboardVisible) {
-                DocumentAssistToolbar(
-                    onAction = viewModel::applyMarkdownFormat,
-                    modifier = Modifier.padding(bottom = with(density) { keyboardHeightPx.toDp() })
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = if (canShowGhostText) {
+                        "${state.wordCount} \u5b57\uff0c\u70b9\u51fb\u7070\u8272\u5efa\u8bae\u63a5\u53d7\u8865\u5168"
+                    } else {
+                        "${state.wordCount} \u5b57\uff0c\u81ea\u52a8\u4fdd\u5b58"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
+                if (bodyFocused && keyboardVisible) {
+                    DocumentAssistToolbar(
+                        onAction = viewModel::applyMarkdownFormat,
+                        modifier = Modifier.padding(bottom = with(density) { keyboardHeightPx.toDp() })
+                    )
+                }
             }
         }
     ) { padding ->
@@ -125,12 +140,33 @@ fun NoteEditorScreen(
                 .verticalScroll(contentScrollState)
                 .padding(16.dp)
         ) {
-            OutlinedTextField(
+            TextField(
                 value = state.title,
                 onValueChange = viewModel::updateTitle,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("\u6807\u9898") },
-                singleLine = true
+                placeholder = {
+                    Text(
+                        text = "\u6807\u9898",
+                        style = MaterialTheme.typography.headlineSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    )
+                },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    disabledPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             )
             Spacer(Modifier.height(12.dp))
             GhostTextEditor(
@@ -148,16 +184,6 @@ fun NoteEditorScreen(
                 onDismissGhostText = viewModel::dismissCompletion,
                 onRetryGhostText = viewModel::retryCompletion,
                 onFocusChanged = { bodyFocused = it }
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = if (canShowGhostText) {
-                    "${state.wordCount} \u5b57\uff0c\u70b9\u51fb\u7070\u8272\u5efa\u8bae\u63a5\u53d7\u8865\u5168"
-                } else {
-                    "${state.wordCount} \u5b57\uff0c\u81ea\u52a8\u4fdd\u5b58"
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
             if (state.completion.loading || state.manualAi.loading) {
