@@ -451,7 +451,7 @@ class NoteEditorViewModel(
         val initialRange = if (value.selection.collapsed) {
             targetWordRange(value, prefix, suffix)
         } else {
-            value.selection.min to value.selection.max
+            shrinkToVisibleContent(value.text, value.selection.min to value.selection.max)
         }
         val text = value.text
         val range = expandFormattedRange(text, initialRange, prefix, suffix)
@@ -486,9 +486,48 @@ class NoteEditorViewModel(
             while (start > 0 && !text[start - 1].isWhitespace()) start--
             var end = cursor
             while (end < text.length && !text[end].isWhitespace()) end++
-            return expandFormattedRange(text, start to end, prefix, suffix)
+            return shrinkToVisibleContent(text, expandFormattedRange(text, start to end, prefix, suffix))
         }
-        return targetLineRange(value)
+        return shrinkToVisibleContent(text, targetLineRange(value))
+    }
+
+    private fun shrinkToVisibleContent(text: String, range: Pair<Int, Int>): Pair<Int, Int> {
+        var start = range.first.coerceIn(0, text.length)
+        var end = range.second.coerceIn(start, text.length)
+        var changed: Boolean
+        do {
+            changed = false
+            val lineHeadingEnd = headingMarkerEndAtLineStart(text, start)
+            if (lineHeadingEnd != null && lineHeadingEnd <= end) {
+                start = lineHeadingEnd
+                changed = true
+            }
+            listOf("**", "~~", "*", "<u>").forEach { marker ->
+                if (text.startsWith(marker, start) && start + marker.length <= end) {
+                    start += marker.length
+                    changed = true
+                }
+            }
+            listOf("**", "~~", "*", "</u>").forEach { marker ->
+                if (end - marker.length >= start && text.substring(end - marker.length, end) == marker) {
+                    end -= marker.length
+                    changed = true
+                }
+            }
+        } while (changed && start <= end)
+        return start to end
+    }
+
+    private fun headingMarkerEndAtLineStart(text: String, start: Int): Int? {
+        if (start > 0 && text.getOrNull(start - 1) != '\n') return null
+        var index = start
+        var count = 0
+        while (index < text.length && text[index] == '#' && count < 6) {
+            index++
+            count++
+        }
+        if (count == 0 || text.getOrNull(index)?.isWhitespace() != true) return null
+        return index + 1
     }
 
     private fun expandFormattedRange(

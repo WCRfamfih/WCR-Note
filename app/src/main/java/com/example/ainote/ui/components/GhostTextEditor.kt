@@ -258,12 +258,12 @@ private fun markdownTransformedOffset(inputText: String, originalOffset: Int): I
 
 private fun markdownMarkerMask(inputText: String): BooleanArray {
     val hiddenRanges = mutableListOf<IntRange>()
-    val spans = mutableListOf<MarkdownSpan>()
-    collectHeadingSpans(inputText, spans, hiddenRanges, SpanStyle(), 18.sp)
-    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("\\*\\*(.+?)\\*\\*"), SpanStyle())
-    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("~~(.+?)~~"), SpanStyle())
-    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("<u>(.+?)</u>"), SpanStyle())
-    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"), SpanStyle())
+    val effects = mutableListOf<MarkdownEffect>()
+    collectHeadingSpans(inputText, effects, hiddenRanges, 18.sp)
+    collectWrapperSpans(inputText, effects, hiddenRanges, Regex("\\*\\*(.+?)\\*\\*"), MarkdownEffectKind.Bold)
+    collectWrapperSpans(inputText, effects, hiddenRanges, Regex("~~(.+?)~~"), MarkdownEffectKind.Strike)
+    collectWrapperSpans(inputText, effects, hiddenRanges, Regex("<u>(.+?)</u>"), MarkdownEffectKind.Underline)
+    collectWrapperSpans(inputText, effects, hiddenRanges, Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"), MarkdownEffectKind.Italic)
     val mask = BooleanArray(inputText.length)
     hiddenRanges.forEach { range ->
         val start = range.first.coerceIn(0, inputText.length)
@@ -304,36 +304,36 @@ private fun markdownPresentation(
     baseStyle: SpanStyle,
     headingSize: TextUnit
 ): MarkdownPresentation {
-    val spans = mutableListOf<MarkdownSpan>()
+    val effects = mutableListOf<MarkdownEffect>()
     val hiddenRanges = mutableListOf<IntRange>()
-    collectHeadingSpans(inputText, spans, hiddenRanges, baseStyle, headingSize)
+    collectHeadingSpans(inputText, effects, hiddenRanges, headingSize)
     collectWrapperSpans(
         inputText,
-        spans,
+        effects,
         hiddenRanges,
         regex = Regex("\\*\\*(.+?)\\*\\*"),
-        style = baseStyle.copy(fontWeight = FontWeight.Bold)
+        effect = MarkdownEffectKind.Bold
     )
     collectWrapperSpans(
         inputText,
-        spans,
+        effects,
         hiddenRanges,
         regex = Regex("~~(.+?)~~"),
-        style = baseStyle.copy(textDecoration = TextDecoration.LineThrough)
+        effect = MarkdownEffectKind.Strike
     )
     collectWrapperSpans(
         inputText,
-        spans,
+        effects,
         hiddenRanges,
         regex = Regex("<u>(.+?)</u>"),
-        style = baseStyle.copy(textDecoration = TextDecoration.Underline)
+        effect = MarkdownEffectKind.Underline
     )
     collectWrapperSpans(
         inputText,
-        spans,
+        effects,
         hiddenRanges,
         regex = Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"),
-        style = baseStyle.copy(fontStyle = FontStyle.Italic)
+        effect = MarkdownEffectKind.Italic
     )
 
     val hidden = BooleanArray(inputText.length)
@@ -361,12 +361,8 @@ private fun markdownPresentation(
     transformedToOriginal += inputText.length
 
     val builder = AnnotatedString.Builder(plainBuilder.toString())
-    spans.forEach { span ->
-        val start = originalToTransformed[span.start.coerceIn(0, inputText.length)]
-        val end = originalToTransformed[span.end.coerceIn(0, inputText.length)]
-        if (start < end) {
-            builder.addStyle(span.style, start, end)
-        }
+    buildMergedStyleRuns(inputText.length, effects, originalToTransformed, baseStyle).forEach { run ->
+        builder.addStyle(run.style, run.start, run.end)
     }
 
     return MarkdownPresentation(
@@ -395,9 +391,8 @@ private fun markdownVisualTransformation(
 
 private fun collectHeadingSpans(
     text: String,
-    spans: MutableList<MarkdownSpan>,
+    effects: MutableList<MarkdownEffect>,
     hiddenRanges: MutableList<IntRange>,
-    baseStyle: SpanStyle,
     headingSize: TextUnit
 ) {
     Regex("^(#{1,3})\\s+.*$", RegexOption.MULTILINE).findAll(text).forEach { match ->
@@ -409,20 +404,20 @@ private fun collectHeadingSpans(
             else -> headingSize * 1.1f
         }
         hiddenRanges += match.range.first until markerEnd
-        spans += MarkdownSpan(
+        effects += MarkdownEffect(
             start = markerEnd,
             end = match.range.last + 1,
-            style = baseStyle.copy(fontSize = size, fontWeight = FontWeight.SemiBold)
+            kind = MarkdownEffectKind.Heading(size)
         )
     }
 }
 
 private fun collectWrapperSpans(
     text: String,
-    spans: MutableList<MarkdownSpan>,
+    effects: MutableList<MarkdownEffect>,
     hiddenRanges: MutableList<IntRange>,
     regex: Regex,
-    style: SpanStyle
+    effect: MarkdownEffectKind
 ) {
     regex.findAll(text).forEach { matchResult ->
         val innerGroup = matchResult.groups[1] ?: return@forEach
@@ -432,7 +427,61 @@ private fun collectWrapperSpans(
         val closeMarkerEnd = matchResult.range.last + 1
         hiddenRanges += openMarkerStart until innerStart
         hiddenRanges += innerEnd until closeMarkerEnd
-        spans += MarkdownSpan(innerStart, innerEnd, style)
+        effects += MarkdownEffect(innerStart, innerEnd, effect)
+    }
+}
+
+private fun buildMergedStyleRuns(
+    inputLength: Int,
+    effects: List<MarkdownEffect>,
+    originalToTransformed: IntArray,
+    baseStyle: SpanStyle
+): List<MarkdownStyleRun> {
+    if (inputLength == 0) return emptyList()
+    val runs = mutableListOf<MarkdownStyleRun>()
+    var runStart: Int? = null
+    var runStyle: SpanStyle? = null
+    for (index in 0 until inputLength) {
+        val transformedStart = originalToTransformed[index]
+        val transformedEnd = originalToTransformed[index + 1]
+        if (transformedStart == transformedEnd) continue
+        val style = effects
+            .filter { index in it.start until it.end }
+            .fold(baseStyle) { acc, effect -> acc.mergeEffect(effect.kind) }
+        if (runStyle != null && runStyle == style) continue
+        val start = runStart
+        val previousStyle = runStyle
+        if (start != null && previousStyle != null && start < transformedStart) {
+            runs += MarkdownStyleRun(start, transformedStart, previousStyle)
+        }
+        runStart = transformedStart
+        runStyle = style
+    }
+    val start = runStart
+    val style = runStyle
+    val end = originalToTransformed[inputLength]
+    if (start != null && style != null && start < end) {
+        runs += MarkdownStyleRun(start, end, style)
+    }
+    return runs
+}
+
+private fun SpanStyle.mergeEffect(effect: MarkdownEffectKind): SpanStyle {
+    return when (effect) {
+        MarkdownEffectKind.Bold -> copy(fontWeight = FontWeight.Bold)
+        MarkdownEffectKind.Italic -> copy(fontStyle = FontStyle.Italic)
+        MarkdownEffectKind.Strike -> copy(textDecoration = mergeDecoration(TextDecoration.LineThrough))
+        MarkdownEffectKind.Underline -> copy(textDecoration = mergeDecoration(TextDecoration.Underline))
+        is MarkdownEffectKind.Heading -> copy(fontSize = effect.fontSize, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private fun SpanStyle.mergeDecoration(decoration: TextDecoration): TextDecoration {
+    val current = textDecoration
+    return when {
+        current == null || current == TextDecoration.None -> decoration
+        current == decoration -> decoration
+        else -> TextDecoration.combine(listOf(current, decoration))
     }
 }
 
@@ -478,7 +527,21 @@ private class PlainMarkdownCopyToolbar(
     }
 }
 
-private data class MarkdownSpan(
+private data class MarkdownEffect(
+    val start: Int,
+    val end: Int,
+    val kind: MarkdownEffectKind
+)
+
+private sealed class MarkdownEffectKind {
+    data object Bold : MarkdownEffectKind()
+    data object Italic : MarkdownEffectKind()
+    data object Strike : MarkdownEffectKind()
+    data object Underline : MarkdownEffectKind()
+    data class Heading(val fontSize: TextUnit) : MarkdownEffectKind()
+}
+
+private data class MarkdownStyleRun(
     val start: Int,
     val end: Int,
     val style: SpanStyle
