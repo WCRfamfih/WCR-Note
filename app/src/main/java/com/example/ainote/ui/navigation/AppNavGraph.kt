@@ -20,6 +20,7 @@ fun AppNavGraph(container: AppContainer) {
         composable("notes") {
             NoteListScreen(
                 repository = container.noteRepository,
+                settingsDataStore = container.settingsDataStore,
                 onOpenNote = { id -> navController.navigate("editor/$id") },
                 onOpenSettings = { navController.navigate("settings") }
             )

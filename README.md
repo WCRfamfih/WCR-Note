@@ -9,6 +9,7 @@ Android AI writing note MVP.
 - Room local note database
 - DataStore user settings
 - Note list, create, edit, delete, search, and recent-edit sorting
+- Folder-style note management with folder filters, folder creation, and card-based note browsing
 - Editor auto-save after 800 ms, title extraction, and character count
 - System dark mode support
 - Fake AI completion card; tap to insert at cursor

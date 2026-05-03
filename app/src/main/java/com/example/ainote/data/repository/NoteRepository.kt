@@ -9,18 +9,21 @@ import kotlinx.coroutines.flow.map
 class NoteRepository(private val dao: NoteDao) {
     fun observeNotes(): Flow<List<Note>> = dao.observeNotes().map { notes -> notes.map { it.toDomain() } }
 
-    fun searchNotes(query: String): Flow<List<Note>> = dao.searchNotes(query.trim()).map { notes -> notes.map { it.toDomain() } }
+    fun searchNotes(query: String, folderName: String? = null): Flow<List<Note>> {
+        return dao.searchNotes(query.trim(), folderName?.trim()?.ifBlank { "" }).map { notes -> notes.map { it.toDomain() } }
+    }
 
     fun observeNote(id: Long): Flow<Note?> = dao.observeNote(id).map { it?.toDomain() }
 
-    suspend fun createNote(): Long {
+    suspend fun createNote(folderName: String = ""): Long {
         val now = System.currentTimeMillis()
         return dao.insert(
             NoteEntity(
                 title = "",
                 content = "",
                 createdAt = now,
-                updatedAt = now
+                updatedAt = now,
+                folderName = folderName.trim()
             )
         )
     }
@@ -33,6 +36,7 @@ class NoteRepository(private val dao: NoteDao) {
                 content = content,
                 createdAt = createdAt,
                 updatedAt = System.currentTimeMillis(),
+                folderName = dao.getFolderName(id).orEmpty(),
                 pinned = pinned
             )
         )
@@ -42,12 +46,17 @@ class NoteRepository(private val dao: NoteDao) {
         dao.softDelete(id, System.currentTimeMillis())
     }
 
+    suspend fun deleteFolder(folderName: String) {
+        dao.clearFolder(folderName.trim(), System.currentTimeMillis())
+    }
+
     private fun NoteEntity.toDomain(): Note = Note(
         id = id,
         title = title,
         content = content,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        folderName = folderName,
         pinned = pinned
     )
 

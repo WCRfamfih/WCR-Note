@@ -29,6 +29,15 @@ class SettingsDataStore(private val context: Context) {
         )
     }
 
+    val folders: Flow<List<String>> = context.settingsDataStore.data.map { prefs ->
+        prefs[Keys.Folders]
+            ?.split('\n')
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.distinct()
+            ?: emptyList()
+    }
+
     suspend fun updateApiProvider(value: String) = updateString(Keys.ApiProvider, value)
     suspend fun updateApiKey(value: String) = updateString(Keys.ApiKey, value)
     suspend fun updateApiBaseUrl(value: String) = updateString(Keys.ApiBaseUrl, value)
@@ -48,6 +57,30 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateUseFullNoteContext(value: Boolean) = updateBoolean(Keys.UseFullNoteContext, value)
     suspend fun updateThemeMode(value: ThemeMode) = updateString(Keys.ThemeMode, value.name)
     suspend fun updateEditorTextSizeSp(value: Int) = updateInt(Keys.EditorTextSizeSp, value)
+    suspend fun addFolder(value: String) {
+        val folderName = value.trim().replace('\n', ' ')
+        if (folderName.isBlank()) return
+        context.settingsDataStore.edit { prefs ->
+            val current = prefs[Keys.Folders]
+                ?.split('\n')
+                ?.map { it.trim() }
+                ?.filter { it.isNotBlank() }
+                .orEmpty()
+            prefs[Keys.Folders] = (current + folderName).distinct().joinToString("\n")
+        }
+    }
+
+    suspend fun removeFolder(value: String) {
+        val folderName = value.trim()
+        context.settingsDataStore.edit { prefs ->
+            val current = prefs[Keys.Folders]
+                ?.split('\n')
+                ?.map { it.trim() }
+                ?.filter { it.isNotBlank() && it != folderName }
+                .orEmpty()
+            prefs[Keys.Folders] = current.distinct().joinToString("\n")
+        }
+    }
 
     private suspend fun updateString(key: androidx.datastore.preferences.core.Preferences.Key<String>, value: String) {
         context.settingsDataStore.edit { it[key] = value }
@@ -77,5 +110,6 @@ class SettingsDataStore(private val context: Context) {
         val UseFullNoteContext = booleanPreferencesKey("use_full_note_context")
         val ThemeMode = stringPreferencesKey("theme_mode")
         val EditorTextSizeSp = intPreferencesKey("editor_text_size_sp")
+        val Folders = stringPreferencesKey("folders")
     }
 }

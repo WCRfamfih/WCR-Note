@@ -6,6 +6,7 @@ data class Note(
     val content: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val folderName: String = "",
     val pinned: Boolean = false
 ) {
     val displayTitle: String
