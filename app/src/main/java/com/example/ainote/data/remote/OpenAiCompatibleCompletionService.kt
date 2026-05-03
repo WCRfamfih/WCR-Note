@@ -1,5 +1,6 @@
 package com.example.ainote.data.remote
 
+import com.example.ainote.data.debug.AiDebugLogStore
 import com.example.ainote.data.settings.UserSettings
 import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionResult
@@ -96,6 +97,23 @@ class OpenAiCompatibleCompletionService(
                     .put(JSONObject().put("role", "user").put("content", userPrompt))
             )
 
+        AiDebugLogStore.add(
+            title = "HTTP request",
+            detail = """
+                provider=${settings.apiProvider}
+                model=$model
+                url=$url
+                maxTokens=$maxTokens
+                temperature=$temperature
+
+                system:
+                $systemPrompt
+
+                user:
+                $userPrompt
+            """.trimIndent()
+        )
+
         val httpRequest = Request.Builder()
             .url(url)
             .header("Authorization", "Bearer $apiKey")
@@ -105,10 +123,19 @@ class OpenAiCompatibleCompletionService(
 
         client.newCall(httpRequest).execute().use { response ->
             val body = response.body?.string().orEmpty()
+            AiDebugLogStore.add(
+                title = "HTTP response ${response.code}",
+                detail = body.ifBlank { "<empty body>" }
+            )
             if (!response.isSuccessful) {
                 throw AiApiException(formatHttpError(response.code, body))
             }
-            return parseChatCompletion(body)
+            val parsed = parseChatCompletion(body)
+            AiDebugLogStore.add(
+                title = "Parsed completion",
+                detail = parsed.ifBlank { "<empty parsed text>" }
+            )
+            return parsed
         }
     }
 

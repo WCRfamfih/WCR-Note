@@ -5,6 +5,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.ainote.data.debug.AiDebugLogStore
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.SettingsDataStore
@@ -16,6 +17,7 @@ import com.example.ainote.domain.usecase.BuildCompletionContextUseCase
 import com.example.ainote.domain.usecase.RequestCompletionUseCase
 import com.example.ainote.ui.components.normalizeMarkdownMarkers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -346,6 +348,7 @@ class NoteEditorViewModel(
             val settings = settingsDataStore.settings.first()
             if (!canRequestCompletion(settings, force)) {
                 if (force) {
+                    AiDebugLogStore.add("Completion skipped", "Manual completion skipped because the cursor is not after existing body text.")
                     _uiState.update {
                         it.copy(completion = CompletionUiState(errorMessage = "请把光标放在正文已有内容之后再补全。"))
                     }
@@ -369,6 +372,7 @@ class NoteEditorViewModel(
                     _uiState.update {
                         it.copy(
                             completion = if (suggestion == null) {
+                                AiDebugLogStore.add("Completion empty", "AI returned no usable completion text after filtering.")
                                 CompletionUiState(errorMessage = "AI 没有返回可用的补全文字，请重试。")
                             } else {
                                 CompletionUiState(suggestion = suggestion)
@@ -377,8 +381,14 @@ class NoteEditorViewModel(
                     }
                 }
                 .onFailure { error ->
-                    _uiState.update {
-                        it.copy(completion = CompletionUiState(errorMessage = "AI 补全失败：${formatErrorMessage(error)}"))
+                    if (error is CancellationException) {
+                        AiDebugLogStore.add("Completion cancelled", error.message ?: "Coroutine was cancelled.")
+                        _uiState.update { it.copy(completion = CompletionUiState()) }
+                    } else {
+                        AiDebugLogStore.add("Completion error", formatErrorMessage(error))
+                        _uiState.update {
+                            it.copy(completion = CompletionUiState(errorMessage = "AI 补全失败：${formatErrorMessage(error)}"))
+                        }
                     }
                 }
         }

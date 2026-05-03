@@ -1,5 +1,6 @@
 package com.example.ainote.data.repository
 
+import com.example.ainote.data.debug.AiDebugLogStore
 import com.example.ainote.data.remote.FakeAiCompletionService
 import com.example.ainote.data.remote.OpenAiCompatibleCompletionService
 import com.example.ainote.data.settings.SettingsDataStore
@@ -27,10 +28,28 @@ class AiRepository(
 
     private suspend fun completeText(request: CompletionRequest, enforceThrottle: Boolean): CompletionResult {
         val settings = settingsDataStore.settings.first()
+        AiDebugLogStore.add(
+            title = if (enforceThrottle) "Auto completion request" else "Manual completion request",
+            detail = """
+                provider=${settings.apiProvider}
+                fake=${settings.shouldUseFake()}
+                maxLength=${request.maxLength}
+                language=${request.language}
+                beforeLength=${request.beforeCursor.length}
+                afterLength=${request.afterCursor.length}
+
+                before:
+                ${request.beforeCursor}
+
+                after:
+                ${request.afterCursor}
+            """.trimIndent()
+        )
         if (enforceThrottle && !settings.shouldUseFake()) {
             val now = System.currentTimeMillis()
             val elapsed = now - lastAutomaticCompletionAt
             if (elapsed < MIN_REAL_API_COMPLETION_INTERVAL_MS) {
+                AiDebugLogStore.add("Completion throttled", "elapsed=${elapsed}ms")
                 throw AiCompletionThrottledException
             }
             lastAutomaticCompletionAt = now
@@ -40,7 +59,20 @@ class AiRepository(
         } else {
             openAiService.completeText(request, settings)
         }
-        return result.copy(text = filterCompletion(result.text, request.maxLength))
+        val filtered = filterCompletion(result.text, request.maxLength)
+        AiDebugLogStore.add(
+            title = "Completion result",
+            detail = """
+                provider=${result.provider}
+                latencyMs=${result.latencyMs}
+                raw:
+                ${result.text}
+
+                filtered:
+                $filtered
+            """.trimIndent()
+        )
+        return result.copy(text = filtered)
     }
 
     suspend fun runAction(request: AiActionRequest): AiActionResult {

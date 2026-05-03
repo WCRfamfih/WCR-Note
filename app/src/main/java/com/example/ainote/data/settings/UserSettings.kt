@@ -14,6 +14,7 @@ data class UserSettings(
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Violet,
     val editorTextSizeSp: Int = 18,
     val showMarkdownMarkers: Boolean = false,
+    val showCompletionErrorToast: Boolean = true,
     val noteSortField: NoteSortField = NoteSortField.Time,
     val noteSortDirection: NoteSortDirection = NoteSortDirection.Descending
 )

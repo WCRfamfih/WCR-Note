@@ -2,6 +2,7 @@ package com.example.ainote.ui.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ainote.data.debug.AiDebugLogStore
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
@@ -56,6 +58,7 @@ fun SettingsScreen(
     dataStore: SettingsDataStore,
     aiRepository: AiRepository,
     onOpenAiSettings: () -> Unit,
+    onOpenAiDebugLog: () -> Unit,
     onBack: () -> Unit
 ) {
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(dataStore, aiRepository))
@@ -85,6 +88,17 @@ fun SettingsScreen(
                     modifier = Modifier.clickable(onClick = onOpenAiSettings),
                     headlineContent = { Text("AI \u8bbe\u7f6e") },
                     supportingContent = { Text("\u670d\u52a1\u5546\u3001API Key\u3001\u81ea\u52a8\u8865\u5168\u548c\u9690\u79c1\u4e0a\u4e0b\u6587") },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    }
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                ListItem(
+                    modifier = Modifier.clickable(onClick = onOpenAiDebugLog),
+                    headlineContent = { Text("AI 调试日志") },
+                    supportingContent = { Text("查看本次启动后的 API 调用、返回和错误。") },
                     trailingContent = {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                     }
@@ -274,6 +288,12 @@ fun AiSettingsScreen(
                 onCheckedChange = viewModel::updatePreferChineseAutoCompletion
             )
             SettingSwitch(
+                title = "显示 AI 补全错误提示",
+                description = "开启后，补全失败或空返回会在底部显示提示；关闭后仅记录到 AI 调试日志。",
+                checked = settings.showCompletionErrorToast,
+                onCheckedChange = viewModel::updateShowCompletionErrorToast
+            )
+            SettingSwitch(
                 title = "\u5141\u8bb8\u6574\u7bc7\u4e0a\u4e0b\u6587",
                 description = "\u5173\u95ed\u65f6\u53ea\u53d1\u9001\u5149\u6807\u9644\u8fd1\u5185\u5bb9\u3002",
                 checked = settings.useFullNoteContext,
@@ -301,6 +321,57 @@ fun AiSettingsScreen(
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AiDebugLogScreen(onBack: () -> Unit) {
+    val entries by AiDebugLogStore.entries.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("AI 调试日志") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "\u8fd4\u56de")
+                    }
+                },
+                actions = {
+                    Button(onClick = AiDebugLogStore::clear) {
+                        Text("清空")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            if (entries.isEmpty()) {
+                Text("暂无日志。本页面只显示本次启动后的 AI 调用记录，重启应用会自动清空。")
+            } else {
+                SelectionContainer {
+                    Column {
+                        entries.forEach { entry ->
+                            Card(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("${entry.time}  ${entry.title}", style = MaterialTheme.typography.titleSmall)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(entry.detail, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                        }
+                    }
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import com.example.ainote.di.AppContainer
 import com.example.ainote.ui.editor.NoteEditorScreen
 import com.example.ainote.ui.notes.NoteListScreen
+import com.example.ainote.ui.settings.AiDebugLogScreen
 import com.example.ainote.ui.settings.AiSettingsScreen
 import com.example.ainote.ui.settings.SettingsScreen
 
@@ -53,6 +54,7 @@ fun AppNavGraph(container: AppContainer) {
                 dataStore = container.settingsDataStore,
                 aiRepository = container.aiRepository,
                 onOpenAiSettings = { navController.navigate("ai_settings") },
+                onOpenAiDebugLog = { navController.navigate("ai_debug_log") },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -60,6 +62,11 @@ fun AppNavGraph(container: AppContainer) {
             AiSettingsScreen(
                 dataStore = container.settingsDataStore,
                 aiRepository = container.aiRepository,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable("ai_debug_log") {
+            AiDebugLogScreen(
                 onBack = { navController.popBackStack() }
             )
         }

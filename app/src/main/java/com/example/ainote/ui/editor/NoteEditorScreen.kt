@@ -19,20 +19,22 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +78,7 @@ fun NoteEditorScreen(
     val keyboardVisible = keyboardHeightPx > with(density) { 96.dp.roundToPx() }
     var showAiMenu by remember { mutableStateOf(false) }
     var bodyFocused by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val canShowGhostText = state.completion.suggestion != null &&
         state.content.selection.collapsed &&
         canShowInlineGhostText(state.content)
@@ -95,25 +98,26 @@ fun NoteEditorScreen(
         )
     }
 
-    state.completion.errorMessage?.let { message ->
-        AlertDialog(
-            onDismissRequest = viewModel::dismissCompletion,
-            title = { Text("AI 补全") },
-            text = { Text(message) },
-            confirmButton = {
-                TextButton(onClick = viewModel::retryCompletion) {
-                    Text("重试")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissCompletion) {
-                    Text("关闭")
-                }
-            }
+    LaunchedEffect(state.completion.errorMessage, settings.showCompletionErrorToast) {
+        val message = state.completion.errorMessage ?: return@LaunchedEffect
+        if (!settings.showCompletionErrorToast) {
+            viewModel.dismissCompletion()
+            return@LaunchedEffect
+        }
+        val result = snackbarHostState.showSnackbar(
+            message = message,
+            actionLabel = "重试",
+            withDismissAction = true
         )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.retryCompletion()
+        } else {
+            viewModel.dismissCompletion()
+        }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 TopAppBar(
