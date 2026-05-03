@@ -376,6 +376,12 @@ class NoteEditorViewModel(
     private fun canRequestCompletion(settings: UserSettings, force: Boolean): Boolean {
         val state = _uiState.value
         val cursor = state.content.selection.start
+        if (force) {
+            return state.content.selection.collapsed &&
+                cursor > 0 &&
+                state.content.text.take(cursor).isNotBlank() &&
+                state.completion.suggestion == null
+        }
         return (settings.autoCompletionEnabled || force) &&
             state.content.selection.collapsed &&
             cursor > 0 &&
