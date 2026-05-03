@@ -6,7 +6,10 @@ import com.example.ainote.domain.model.Note
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class NoteRepository(private val dao: NoteDao) {
+class NoteRepository(
+    private val dao: NoteDao,
+    private val backupRepository: DocumentBackupRepository? = null
+) {
     fun observeNotes(): Flow<List<Note>> = dao.observeNotes().map { notes -> notes.map { it.toDomain() } }
 
     fun searchNotes(query: String, folderName: String? = null): Flow<List<Note>> {
@@ -29,17 +32,20 @@ class NoteRepository(private val dao: NoteDao) {
     }
 
     suspend fun saveNote(id: Long, title: String, content: String, createdAt: Long, pinned: Boolean) {
+        val updatedAt = System.currentTimeMillis()
+        val resolvedTitle = title.ifBlank { extractTitle(content) }
         dao.update(
             NoteEntity(
                 id = id,
-                title = title.ifBlank { extractTitle(content) },
+                title = resolvedTitle,
                 content = content,
                 createdAt = createdAt,
-                updatedAt = System.currentTimeMillis(),
+                updatedAt = updatedAt,
                 folderName = dao.getFolderName(id).orEmpty(),
                 pinned = pinned
             )
         )
+        backupRepository?.backupNote(id, resolvedTitle, content, updatedAt)
     }
 
     suspend fun deleteNote(id: Long) {

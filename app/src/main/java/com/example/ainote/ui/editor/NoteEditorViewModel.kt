@@ -363,7 +363,9 @@ class NoteEditorViewModel(
                 cursor = cursor,
                 title = state.title,
                 maxLength = settings.maxCompletionLength,
-                useFullNoteContext = settings.useFullNoteContext
+                useFullNoteContext = settings.useFullNoteContext,
+                beforeLineCount = settings.completionBeforeLineCount,
+                afterLineCount = settings.completionAfterLineCount
             )
             _uiState.update { it.copy(completion = CompletionUiState(loading = true)) }
             runCatching { requestCompletion(request, force = force) }
@@ -406,12 +408,20 @@ class NoteEditorViewModel(
             state.content.selection.collapsed &&
             cursor > 0 &&
             state.content.text.take(cursor).isNotBlank() &&
+            (!settings.skipBlankLineAutoCompletion || !isCurrentLineBlank(state.content.text, cursor)) &&
             (!settings.preferChineseAutoCompletion || containsChinese(state.content.text.take(cursor))) &&
             state.completion.suggestion == null
     }
 
     private fun containsChinese(text: String): Boolean {
         return text.any { it in '\u4e00'..'\u9fff' }
+    }
+
+    private fun isCurrentLineBlank(text: String, cursor: Int): Boolean {
+        val safeCursor = cursor.coerceIn(0, text.length)
+        val lineStart = if (safeCursor == 0) 0 else text.lastIndexOf('\n', safeCursor - 1).let { if (it == -1) 0 else it + 1 }
+        val lineEnd = text.indexOf('\n', safeCursor).let { if (it == -1) text.length else it }
+        return text.substring(lineStart, lineEnd).isBlank()
     }
 
     private fun transformSelectedLines(

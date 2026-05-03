@@ -38,14 +38,18 @@ class SettingsViewModel(
 
     fun updateAutoCompletionEnabled(value: Boolean) = launch { dataStore.updateAutoCompletionEnabled(value) }
     fun updatePreferChineseAutoCompletion(value: Boolean) = launch { dataStore.updatePreferChineseAutoCompletion(value) }
+    fun updateSkipBlankLineAutoCompletion(value: Boolean) = launch { dataStore.updateSkipBlankLineAutoCompletion(value) }
     fun updateCompletionDelayMs(value: Long) = launch { dataStore.updateCompletionDelayMs(value) }
     fun updateMaxCompletionLength(value: Int) = launch { dataStore.updateMaxCompletionLength(value) }
     fun updateUseFullNoteContext(value: Boolean) = launch { dataStore.updateUseFullNoteContext(value) }
+    fun updateCompletionBeforeLineCount(value: Int) = launch { dataStore.updateCompletionBeforeLineCount(value) }
+    fun updateCompletionAfterLineCount(value: Int) = launch { dataStore.updateCompletionAfterLineCount(value) }
     fun updateThemeMode(value: ThemeMode) = launch { dataStore.updateThemeMode(value) }
     fun updateAccentColorPreset(value: AccentColorPreset) = launch { dataStore.updateAccentColorPreset(value) }
     fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
     fun updateShowMarkdownMarkers(value: Boolean) = launch { dataStore.updateShowMarkdownMarkers(value) }
     fun updateShowCompletionErrorToast(value: Boolean) = launch { dataStore.updateShowCompletionErrorToast(value) }
+    fun updateDocumentDirectoryUri(value: String) = launch { dataStore.updateDocumentDirectoryUri(value) }
     fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
     fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }
 

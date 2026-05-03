@@ -1,5 +1,9 @@
 package com.example.ainote.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -39,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -63,6 +68,13 @@ fun SettingsScreen(
 ) {
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(dataStore, aiRepository))
     val settings by viewModel.settings.collectAsState()
+    val context = LocalContext.current
+    val directoryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching { context.contentResolver.takePersistableUriPermission(uri, flags) }
+        viewModel.updateDocumentDirectoryUri(uri.toString())
+    }
 
     Scaffold(
         topBar = {
@@ -149,6 +161,30 @@ fun SettingsScreen(
                 onCheckedChange = viewModel::updateShowMarkdownMarkers
             )
             Spacer(Modifier.height(20.dp))
+            Text("文档保存目录", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = settings.documentDirectoryUri.takeIf { it.isNotBlank() }?.let(::displayDirectoryUri)
+                            ?: "未指定。指定后，每次保存笔记都会同步写出 Markdown 文件。",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row {
+                        Button(onClick = { directoryPicker.launch(null) }) {
+                            Text(if (settings.documentDirectoryUri.isBlank()) "选择目录" else "更换目录")
+                        }
+                        if (settings.documentDirectoryUri.isNotBlank()) {
+                            Spacer(Modifier.padding(horizontal = 4.dp))
+                            Button(onClick = { viewModel.updateDocumentDirectoryUri("") }) {
+                                Text("清除")
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(20.dp))
             Text("笔记排序", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -174,6 +210,10 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+private fun displayDirectoryUri(uri: String): String {
+    return Uri.decode(uri).substringAfterLast('/').ifBlank { uri }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -288,6 +328,12 @@ fun AiSettingsScreen(
                 onCheckedChange = viewModel::updatePreferChineseAutoCompletion
             )
             SettingSwitch(
+                title = "空文字行不触发自动补全",
+                description = "开启后，光标所在行没有文字时不会自动请求补全；手动补全不受影响。",
+                checked = settings.skipBlankLineAutoCompletion,
+                onCheckedChange = viewModel::updateSkipBlankLineAutoCompletion
+            )
+            SettingSwitch(
                 title = "显示 AI 补全错误提示",
                 description = "开启后，补全失败或空返回会在底部显示提示；关闭后仅记录到 AI 调试日志。",
                 checked = settings.showCompletionErrorToast,
@@ -299,6 +345,23 @@ fun AiSettingsScreen(
                 checked = settings.useFullNoteContext,
                 onCheckedChange = viewModel::updateUseFullNoteContext
             )
+            if (!settings.useFullNoteContext) {
+                Spacer(Modifier.height(12.dp))
+                Text("允许发送的前文行数：${settings.completionBeforeLineCount}", style = MaterialTheme.typography.titleSmall)
+                Slider(
+                    value = settings.completionBeforeLineCount.toFloat(),
+                    onValueChange = { viewModel.updateCompletionBeforeLineCount(it.toInt()) },
+                    valueRange = 0f..20f,
+                    steps = 19
+                )
+                Text("允许发送的下文行数：${settings.completionAfterLineCount}", style = MaterialTheme.typography.titleSmall)
+                Slider(
+                    value = settings.completionAfterLineCount.toFloat(),
+                    onValueChange = { viewModel.updateCompletionAfterLineCount(it.toInt()) },
+                    valueRange = 0f..20f,
+                    steps = 19
+                )
+            }
             Spacer(Modifier.height(20.dp))
             Text("\u8865\u5168\u5ef6\u8fdf\uff1a${settings.completionDelayMs} ms", style = MaterialTheme.typography.titleSmall)
             Slider(

@@ -7,14 +7,18 @@ data class UserSettings(
     val apiModel: String = "gpt-4o-mini",
     val autoCompletionEnabled: Boolean = true,
     val preferChineseAutoCompletion: Boolean = true,
+    val skipBlankLineAutoCompletion: Boolean = true,
     val completionDelayMs: Long = 700,
     val maxCompletionLength: Int = 30,
     val useFullNoteContext: Boolean = false,
+    val completionBeforeLineCount: Int = 5,
+    val completionAfterLineCount: Int = 2,
     val themeMode: ThemeMode = ThemeMode.System,
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Violet,
     val editorTextSizeSp: Int = 18,
     val showMarkdownMarkers: Boolean = false,
     val showCompletionErrorToast: Boolean = true,
+    val documentDirectoryUri: String = "",
     val noteSortField: NoteSortField = NoteSortField.Time,
     val noteSortDirection: NoteSortDirection = NoteSortDirection.Descending
 )
