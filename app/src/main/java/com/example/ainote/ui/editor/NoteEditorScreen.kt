@@ -197,6 +197,7 @@ fun NoteEditorScreen(
                 onAcceptGhostText = viewModel::acceptCompletion,
                 onDismissGhostText = viewModel::dismissCompletion,
                 onRetryGhostText = viewModel::retryCompletion,
+                renderMarkdown = !settings.showMarkdownMarkers,
                 onFocusChanged = { bodyFocused = it }
             )
             Spacer(Modifier.height(8.dp))

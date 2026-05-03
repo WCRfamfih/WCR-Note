@@ -14,6 +14,7 @@ import com.example.ainote.domain.model.AiActionType
 import com.example.ainote.domain.model.Note
 import com.example.ainote.domain.usecase.BuildCompletionContextUseCase
 import com.example.ainote.domain.usecase.RequestCompletionUseCase
+import com.example.ainote.ui.components.normalizeMarkdownMarkers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +55,7 @@ class NoteEditorViewModel(
     private var saveJob: Job? = null
     private var completionJob: Job? = null
     private var initialized = false
+    private var showMarkdownMarkers = false
 
     init {
         viewModelScope.launch {
@@ -64,6 +66,11 @@ class NoteEditorViewModel(
                 }
             }
         }
+        viewModelScope.launch {
+            settingsDataStore.settings.collect { settings ->
+                showMarkdownMarkers = settings.showMarkdownMarkers
+            }
+        }
     }
 
     fun updateTitle(value: String) {
@@ -72,11 +79,12 @@ class NoteEditorViewModel(
     }
 
     fun updateContent(value: TextFieldValue) {
+        val normalizedValue = if (showMarkdownMarkers) value else value.normalizeMarkdownSelection()
         val oldText = _uiState.value.content.text
         val current = _uiState.value.content
         
         // Record history if content actually changed
-        if (current != value) {
+        if (current != normalizedValue) {
             undoStack.addLast(current)
             if (undoStack.size > 100) {
                 undoStack.removeFirst()
@@ -86,8 +94,8 @@ class NoteEditorViewModel(
         
         _uiState.update {
             it.copy(
-                content = value,
-                wordCount = value.text.length,
+                content = normalizedValue,
+                wordCount = normalizedValue.text.length,
                 completion = CompletionUiState(),
                 manualAi = it.manualAi.copy(result = null, statusMessage = null, errorMessage = null),
                 canUndo = undoStack.isNotEmpty(),
@@ -95,7 +103,7 @@ class NoteEditorViewModel(
             )
         }
         scheduleSave()
-        if (value.text.length >= oldText.length) {
+        if (normalizedValue.text.length >= oldText.length) {
             scheduleCompletion()
         } else {
             completionJob?.cancel()
@@ -519,6 +527,18 @@ class NoteEditorViewModel(
             TextRange(start + replacement.length)
         }
         return value.copy(text = nextText, selection = nextSelection)
+    }
+
+    private fun TextFieldValue.normalizeMarkdownSelection(): TextFieldValue {
+        val normalizedText = normalizeMarkdownMarkers(text)
+        if (normalizedText == text) return this
+        return copy(
+            text = normalizedText,
+            selection = TextRange(
+                selection.start.coerceIn(0, normalizedText.length),
+                selection.end.coerceIn(0, normalizedText.length)
+            )
+        )
     }
 
     private fun TextFieldValue.selectedTextOrNull(): String? {

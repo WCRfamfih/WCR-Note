@@ -67,6 +67,7 @@ fun GhostTextEditor(
     onAcceptGhostText: () -> Unit,
     onDismissGhostText: () -> Unit,
     onRetryGhostText: () -> Unit,
+    renderMarkdown: Boolean = true,
     onFocusChanged: (Boolean) -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -78,16 +79,16 @@ fun GhostTextEditor(
         fontSize = textSizeSp.sp
     )
     val ghostStyle = textStyle.copy(color = colorScheme.onSurfaceVariant.copy(alpha = 0.48f))
-    val visualTransformation = remember(textStyle, colorScheme) {
-        markdownVisualTransformation(textStyle, colorScheme)
+    val visualTransformation = remember(textStyle, colorScheme, renderMarkdown) {
+        if (renderMarkdown) markdownVisualTransformation(textStyle, colorScheme) else VisualTransformation.None
     }
     var cursorRect by remember { mutableStateOf(Rect.Zero) }
     var editorSize by remember { mutableStateOf(IntSize.Zero) }
     var controlsSize by remember { mutableStateOf(IntSize.Zero) }
 
-    val plainCopyToolbar = remember(parentTextToolbar, clipboardManager, value) {
+    val plainCopyToolbar = remember(parentTextToolbar, clipboardManager, value, renderMarkdown) {
         PlainMarkdownCopyToolbar(parentTextToolbar, clipboardManager) {
-            value.selectedTextWithoutMarkdown()
+            if (renderMarkdown) value.selectedTextWithoutMarkdown() else null
         }
     }
 
@@ -108,10 +109,14 @@ fun GhostTextEditor(
                 visualTransformation = visualTransformation,
                 cursorBrush = SolidColor(colorScheme.primary),
                 onTextLayout = { layoutResult ->
-                    val transformedCursor = markdownTransformedOffset(
-                        inputText = value.text,
-                        originalOffset = value.selection.start
-                    )
+                    val transformedCursor = if (renderMarkdown) {
+                        markdownTransformedOffset(
+                            inputText = value.text,
+                            originalOffset = value.selection.start
+                        )
+                    } else {
+                        value.selection.start
+                    }
                     cursorRect = layoutResult.getCursorRect(transformedCursor)
                 },
                 decorationBox = { innerTextField ->
@@ -215,12 +220,83 @@ fun stripMarkdownMarkers(inputText: String): String {
     ).plainText
 }
 
+fun normalizeMarkdownMarkers(inputText: String): String {
+    var current = inputText
+    repeat(4) {
+        val withoutEmpty = current
+            .replace(Regex("\\*\\*\\s*\\*\\*"), "")
+            .replace(Regex("~~\\s*~~"), "")
+            .replace(Regex("<u>\\s*</u>"), "")
+            .replace(Regex("(?<!\\*)\\*(?!\\*)\\s*(?<!\\*)\\*(?!\\*)"), "")
+            .replace(Regex("(?m)^#{1,3}\\s*(?=\\n|$)"), "")
+        val protectedMarkers = markdownMarkerMask(withoutEmpty)
+        val cleaned = StringBuilder()
+        var index = 0
+        while (index < withoutEmpty.length) {
+            val markerLength = unprotectedMarkerLength(withoutEmpty, index, protectedMarkers)
+            if (markerLength > 0) {
+                index += markerLength
+            } else {
+                cleaned.append(withoutEmpty[index])
+                index++
+            }
+        }
+        val next = cleaned.toString()
+        if (next == current) return current
+        current = next
+    }
+    return current
+}
+
 private fun markdownTransformedOffset(inputText: String, originalOffset: Int): Int {
     return markdownPresentation(
         inputText = inputText,
         baseStyle = SpanStyle(),
         headingSize = 18.sp
     ).offsetMapping.originalToTransformed(originalOffset)
+}
+
+private fun markdownMarkerMask(inputText: String): BooleanArray {
+    val hiddenRanges = mutableListOf<IntRange>()
+    val spans = mutableListOf<MarkdownSpan>()
+    collectHeadingSpans(inputText, spans, hiddenRanges, SpanStyle(), 18.sp)
+    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("\\*\\*(.+?)\\*\\*"), SpanStyle())
+    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("~~(.+?)~~"), SpanStyle())
+    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("<u>(.+?)</u>"), SpanStyle())
+    collectWrapperSpans(inputText, spans, hiddenRanges, Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"), SpanStyle())
+    val mask = BooleanArray(inputText.length)
+    hiddenRanges.forEach { range ->
+        val start = range.first.coerceIn(0, inputText.length)
+        val end = (range.last + 1).coerceIn(start, inputText.length)
+        for (index in start until end) {
+            mask[index] = true
+        }
+    }
+    return mask
+}
+
+private fun unprotectedMarkerLength(text: String, index: Int, protectedMarkers: BooleanArray): Int {
+    fun isProtected(start: Int, length: Int): Boolean {
+        return start + length <= protectedMarkers.size && (start until start + length).all { protectedMarkers[it] }
+    }
+    val remaining = text.length - index
+    if (remaining >= 4 && text.startsWith("</u>", index) && !isProtected(index, 4)) return 4
+    if (remaining >= 3 && text.startsWith("<u>", index) && !isProtected(index, 3)) return 3
+    if (remaining >= 2 && (text.startsWith("**", index) || text.startsWith("~~", index)) && !isProtected(index, 2)) return 2
+    if (text[index] == '*' && !isProtected(index, 1)) return 1
+    if (text[index] == '#' && isLineStartMarker(text, index) && !isProtected(index, 1)) return 1
+    return 0
+}
+
+private fun isLineStartMarker(text: String, index: Int): Boolean {
+    if (index > 0 && text[index - 1] != '\n') return false
+    var cursor = index
+    var count = 0
+    while (cursor < text.length && text[cursor] == '#' && count < 3) {
+        cursor++
+        count++
+    }
+    return count > 0 && text.getOrNull(cursor)?.isWhitespace() == true
 }
 
 private fun markdownPresentation(

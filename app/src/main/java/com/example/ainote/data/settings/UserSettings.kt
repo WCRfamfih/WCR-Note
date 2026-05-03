@@ -13,6 +13,7 @@ data class UserSettings(
     val themeMode: ThemeMode = ThemeMode.System,
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Violet,
     val editorTextSizeSp: Int = 18,
+    val showMarkdownMarkers: Boolean = false,
     val noteSortField: NoteSortField = NoteSortField.Time,
     val noteSortDirection: NoteSortDirection = NoteSortDirection.Descending
 )

@@ -128,6 +128,12 @@ fun SettingsScreen(
                 valueRange = 14f..28f,
                 steps = 13
             )
+            SettingSwitch(
+                title = "显示 Markdown 标记",
+                description = "调试用。开启后显示并允许手动编辑特殊字符，同时关闭 Markdown 效果渲染。",
+                checked = settings.showMarkdownMarkers,
+                onCheckedChange = viewModel::updateShowMarkdownMarkers
+            )
             Spacer(Modifier.height(20.dp))
             Text("笔记排序", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
