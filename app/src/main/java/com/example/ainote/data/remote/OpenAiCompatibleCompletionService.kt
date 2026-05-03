@@ -33,7 +33,7 @@ class OpenAiCompatibleCompletionService(
             settings = settings,
             systemPrompt = completionSystemPrompt(request),
             userPrompt = buildCompletionPrompt(request),
-            maxTokens = request.maxLength.coerceAtLeast(16) * 2,
+            maxTokens = completionMaxTokens(request.maxLength),
             temperature = 0.3
         )
         return CompletionResult(
@@ -175,8 +175,24 @@ class OpenAiCompatibleCompletionService(
         val json = JSONObject(body)
         val choices = json.optJSONArray("choices") ?: return ""
         if (choices.length() == 0) return ""
-        val message = choices.optJSONObject(0)?.optJSONObject("message")
-        return message?.optString("content").orEmpty()
+        val choice = choices.optJSONObject(0)
+        val message = choice?.optJSONObject("message")
+        val content = message?.optString("content").orEmpty()
+        if (content.isBlank()) {
+            AiDebugLogStore.add(
+                title = "Empty content detail",
+                detail = """
+                    finishReason=${choice?.optString("finish_reason").orEmpty()}
+                    reasoningContent:
+                    ${message?.optString("reasoning_content").orEmpty().ifBlank { "<empty reasoning_content>" }}
+                """.trimIndent()
+            )
+        }
+        return content
+    }
+
+    private fun completionMaxTokens(maxLength: Int): Int {
+        return (maxLength.coerceAtLeast(30) * 8).coerceAtLeast(256)
     }
 
     private fun completionSystemPrompt(request: CompletionRequest): String {
