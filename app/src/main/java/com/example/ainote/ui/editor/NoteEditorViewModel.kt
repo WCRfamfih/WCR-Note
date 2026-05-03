@@ -74,7 +74,7 @@ class NoteEditorViewModel(
                 content = value,
                 wordCount = value.text.length,
                 completion = CompletionUiState(),
-                manualAi = it.manualAi.copy(result = null)
+                manualAi = it.manualAi.copy(result = null, errorMessage = null)
             )
         }
         scheduleSave()
@@ -151,8 +151,15 @@ class NoteEditorViewModel(
                         }
                     }
                 }
-                .onFailure {
-                    _uiState.update { it.copy(manualAi = ManualAiUiState(result = "\u0041\u0049 \u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002")) }
+                .onFailure { error ->
+                    _uiState.update { state ->
+                        state.copy(
+                            manualAi = ManualAiUiState(
+                                actionLabel = actionType.label,
+                                errorMessage = "\u0041\u0049 \u64cd\u4f5c\u5931\u8d25\uff1a${formatErrorMessage(error)}"
+                            )
+                        )
+                    }
                 }
         }
     }
@@ -180,6 +187,10 @@ class NoteEditorViewModel(
 
     fun dismissManualAiResult() {
         _uiState.update { it.copy(manualAi = ManualAiUiState()) }
+    }
+
+    fun dismissManualAiStatus() {
+        _uiState.update { it.copy(manualAi = it.manualAi.copy(errorMessage = null, loading = false)) }
     }
 
     fun saveNow(onSaved: () -> Unit = {}) {
@@ -274,6 +285,10 @@ class NoteEditorViewModel(
             AiActionType.Concise,
             AiActionType.Todo
         )
+    }
+
+    private fun formatErrorMessage(it: Throwable): String {
+        return it.message?.takeIf(String::isNotBlank) ?: "\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
     }
 
     class Factory(

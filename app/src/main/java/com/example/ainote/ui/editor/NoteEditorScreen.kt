@@ -35,6 +35,7 @@ import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.ui.components.AiActionBottomSheet
 import com.example.ainote.ui.components.AiActionResultCard
 import com.example.ainote.ui.components.AiCompletionCard
+import com.example.ainote.ui.components.AiStatusCard
 import com.example.ainote.ui.components.GhostTextEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -137,6 +138,13 @@ fun NoteEditorScreen(
                     text = result,
                     onAccept = viewModel::acceptManualAiResult,
                     onDismiss = viewModel::dismissManualAiResult
+                )
+            }
+            state.manualAi.errorMessage?.let { message ->
+                AiStatusCard(
+                    title = "\u0041\u0049 ${state.manualAi.actionLabel ?: "\u64cd\u4f5c"}",
+                    message = message,
+                    onDismiss = viewModel::dismissManualAiStatus
                 )
             }
         }

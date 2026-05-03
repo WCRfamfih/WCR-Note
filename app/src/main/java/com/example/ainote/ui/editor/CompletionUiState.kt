@@ -8,6 +8,7 @@ data class CompletionUiState(
 data class ManualAiUiState(
     val loading: Boolean = false,
     val result: String? = null,
+    val errorMessage: String? = null,
     val actionLabel: String? = null,
     val replaceSelection: Boolean = false
 )
