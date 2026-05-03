@@ -4,13 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +39,9 @@ fun GhostTextEditor(
     onValueChange: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier,
     ghostText: String?,
-    onAcceptGhostText: () -> Unit
+    onAcceptGhostText: () -> Unit,
+    onDismissGhostText: () -> Unit,
+    onRetryGhostText: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val textStyle = MaterialTheme.typography.bodyLarge.copy(color = colorScheme.onSurface)
@@ -41,7 +51,7 @@ fun GhostTextEditor(
 
     Box(
         modifier = modifier
-            .background(colorScheme.surfaceVariant.copy(alpha = 0.72f))
+            .background(colorScheme.background)
             .padding(16.dp)
     ) {
         BasicTextField(
@@ -85,6 +95,30 @@ fun GhostTextEditor(
                         onClick = onAcceptGhostText
                     )
             )
+            Surface(
+                tonalElevation = 6.dp,
+                shadowElevation = 6.dp,
+                shape = MaterialTheme.shapes.large,
+                color = colorScheme.surface,
+                modifier = Modifier.offset {
+                    IntOffset(
+                        x = cursorRect.left.roundToInt(),
+                        y = cursorRect.bottom.roundToInt() - scrollState.value + 12
+                    )
+                }
+            ) {
+                Row(modifier = Modifier.padding(horizontal = 4.dp)) {
+                    IconButton(onClick = onAcceptGhostText) {
+                        Icon(Icons.Default.Check, contentDescription = "\u63a5\u53d7\u8865\u5168")
+                    }
+                    IconButton(onClick = onDismissGhostText) {
+                        Icon(Icons.Default.Close, contentDescription = "\u5ffd\u7565\u8865\u5168")
+                    }
+                    IconButton(onClick = onRetryGhostText) {
+                        Icon(Icons.Default.Refresh, contentDescription = "\u91cd\u8bd5\u8865\u5168")
+                    }
+                }
+            }
         }
     }
 }

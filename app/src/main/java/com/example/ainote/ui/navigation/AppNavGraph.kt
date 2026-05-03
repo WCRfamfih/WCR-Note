@@ -33,6 +33,7 @@ fun AppNavGraph(container: AppContainer) {
                 noteRepository = container.noteRepository,
                 aiRepository = container.aiRepository,
                 settingsDataStore = container.settingsDataStore,
+                onOpenSettings = { navController.navigate("settings") },
                 onBack = { navController.popBackStack() }
             )
         }

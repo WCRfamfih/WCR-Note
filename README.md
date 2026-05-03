@@ -26,6 +26,7 @@ Android AI writing note MVP.
 - Human-readable API errors for common network, auth, billing, rate limit, and server failures
 - Real API auto-completion throttling to reduce accidental rapid requests
 - In-editor ghost text for completion when the cursor is at the end of a line
+- Floating ghost-text controls for accept, dismiss, and retry
 - Completion card fallback when ghost text cannot be displayed safely
 
 ## Run

@@ -102,6 +102,11 @@ class NoteEditorViewModel(
         scheduleCompletion(force = true)
     }
 
+    fun retryCompletion() {
+        dismissCompletion()
+        scheduleCompletion(force = true)
+    }
+
     fun runManualAction(actionType: AiActionType) {
         completionJob?.cancel()
         viewModelScope.launch {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +48,7 @@ fun NoteEditorScreen(
     noteRepository: NoteRepository,
     aiRepository: AiRepository,
     settingsDataStore: SettingsDataStore,
+    onOpenSettings: () -> Unit,
     onBack: () -> Unit
 ) {
     val viewModel: NoteEditorViewModel = viewModel(
@@ -86,6 +88,9 @@ fun NoteEditorScreen(
                     IconButton(onClick = { showAiMenu = true }) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = "\u0041\u0049 \u64cd\u4f5c")
                     }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "\u8bbe\u7f6e")
+                    }
                 }
             )
         }
@@ -111,7 +116,9 @@ fun NoteEditorScreen(
                     .fillMaxWidth()
                     .weight(1f),
                 ghostText = state.completion.suggestion.takeIf { canShowGhostText },
-                onAcceptGhostText = viewModel::acceptCompletion
+                onAcceptGhostText = viewModel::acceptCompletion,
+                onDismissGhostText = viewModel::dismissCompletion,
+                onRetryGhostText = viewModel::retryCompletion
             )
             Spacer(Modifier.height(8.dp))
             Text(
