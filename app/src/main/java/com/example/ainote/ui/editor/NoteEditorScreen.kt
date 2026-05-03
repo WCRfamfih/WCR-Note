@@ -1,5 +1,6 @@
 package com.example.ainote.ui.editor
 
+import android.graphics.Rect
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -23,12 +24,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,6 +63,9 @@ fun NoteEditorScreen(
     val state by viewModel.uiState.collectAsState()
     val settings by settingsDataStore.settings.collectAsState(initial = UserSettings())
     val clipboardManager = LocalClipboardManager.current
+    val density = LocalDensity.current
+    val keyboardHeightPx = rememberKeyboardHeightPx()
+    val keyboardVisible = keyboardHeightPx > with(density) { 96.dp.roundToPx() }
     var showAiMenu by remember { mutableStateOf(false) }
     var bodyFocused by remember { mutableStateOf(false) }
     val canShowGhostText = state.completion.suggestion != null &&
@@ -99,8 +106,11 @@ fun NoteEditorScreen(
             )
         },
         bottomBar = {
-            if (bodyFocused) {
-                DocumentAssistToolbar(onAction = viewModel::applyMarkdownFormat)
+            if (bodyFocused && keyboardVisible) {
+                DocumentAssistToolbar(
+                    onAction = viewModel::applyMarkdownFormat,
+                    modifier = Modifier.padding(bottom = with(density) { keyboardHeightPx.toDp() })
+                )
             }
         }
     ) { padding ->
@@ -188,6 +198,25 @@ fun NoteEditorScreen(
             }
         }
     }
+}
+
+@Composable
+private fun rememberKeyboardHeightPx(): Int {
+    val view = LocalView.current
+    var keyboardHeight by remember { mutableStateOf(0) }
+    DisposableEffect(view) {
+        val visibleFrame = Rect()
+        val listener = android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            view.rootView.getWindowVisibleDisplayFrame(visibleFrame)
+            val hiddenHeight = (view.rootView.height - visibleFrame.bottom).coerceAtLeast(0)
+            keyboardHeight = hiddenHeight
+        }
+        view.viewTreeObserver.addOnGlobalLayoutListener(listener)
+        onDispose {
+            view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+        }
+    }
+    return keyboardHeight
 }
 
 private fun canShowInlineGhostText(value: TextFieldValue): Boolean {
