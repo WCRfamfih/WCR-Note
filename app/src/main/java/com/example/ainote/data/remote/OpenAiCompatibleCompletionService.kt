@@ -16,6 +16,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URI
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
@@ -80,7 +81,7 @@ class OpenAiCompatibleCompletionService(
         temperature: Double
     ): String {
         val apiKey = settings.apiKey.trim()
-        val url = settings.apiBaseUrl.trim()
+        val url = normalizeChatCompletionsUrl(settings.apiBaseUrl.trim())
         val model = settings.apiModel.trim()
         if (apiKey.isBlank()) throw AiApiException("\u0041\u0050\u0049 \u004b\u0065\u0079 \u4e3a\u7a7a\uff0c\u8bf7\u5148\u5728\u8bbe\u7f6e\u9875\u586b\u5199\u3002")
         if (url.isBlank()) throw AiApiException("\u0041\u0050\u0049 \u5730\u5740\u4e3a\u7a7a\uff0c\u8bf7\u586b\u5199\u5b8c\u6574\u7684 chat/completions \u5730\u5740\u3002")
@@ -172,7 +173,11 @@ class OpenAiCompatibleCompletionService(
     }
 
     private fun parseChatCompletion(body: String): String {
-        val json = JSONObject(body)
+        val json = runCatching { JSONObject(body) }.getOrElse {
+            throw AiApiException(
+                "API 返回的不是 JSON，请检查 API Base URL 是否是完整的 chat/completions 接口。返回内容：${body.previewForError()}"
+            )
+        }
         val choices = json.optJSONArray("choices") ?: return ""
         if (choices.length() == 0) return ""
         val choice = choices.optJSONObject(0)
@@ -193,6 +198,24 @@ class OpenAiCompatibleCompletionService(
 
     private fun completionMaxTokens(maxLength: Int): Int {
         return (maxLength.coerceAtLeast(30) * 8).coerceAtLeast(256)
+    }
+
+    private fun normalizeChatCompletionsUrl(rawUrl: String): String {
+        if (rawUrl.isBlank()) return rawUrl
+        val trimmed = rawUrl.trimEnd('/')
+        val path = runCatching { URI(trimmed).path.orEmpty().trimEnd('/') }.getOrDefault("")
+        return when {
+            path.endsWith("/chat/completions") -> trimmed
+            path.isBlank() -> "$trimmed/v1/chat/completions"
+            path == "/v1" -> "$trimmed/chat/completions"
+            else -> rawUrl
+        }
+    }
+
+    private fun String.previewForError(): String {
+        return replace('\n', ' ')
+            .replace('\r', ' ')
+            .take(180)
     }
 
     private fun completionSystemPrompt(request: CompletionRequest): String {
