@@ -15,6 +15,7 @@ Android AI writing note MVP.
 - Editor AI action menu: continue writing, expand, make formal, make concise, turn into todos, summarize, generate title
 - Manual AI result card with accept and dismiss
 - Manual AI error/status card that cannot be inserted into the note by mistake
+- Failed manual AI actions can be retried from the status card
 - Selected text replacement for expand, rewrite, and todo actions
 - Settings for API Provider, API Key, API Base URL, Model, auto completion, delay, max completion length, and context range
 - Provider presets for Fake, OpenAI, DeepSeek, and Qwen
@@ -47,4 +48,4 @@ You can also tap a provider preset in Settings. Presets update Provider, Base UR
 
 1. Improve ghost text positioning when there is text after the cursor on the same line.
 2. Add per-provider help text and API key links.
-3. Add manual retry for failed AI actions.
+3. Add per-action result editing before insertion.

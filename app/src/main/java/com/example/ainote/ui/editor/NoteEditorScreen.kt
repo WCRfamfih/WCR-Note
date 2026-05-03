@@ -144,6 +144,7 @@ fun NoteEditorScreen(
                 AiStatusCard(
                     title = "\u0041\u0049 ${state.manualAi.actionLabel ?: "\u64cd\u4f5c"}",
                     message = message,
+                    onRetry = viewModel::retryManualAction,
                     onDismiss = viewModel::dismissManualAiStatus
                 )
             }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 fun AiStatusCard(
     title: String,
     message: String,
+    onRetry: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -37,6 +39,11 @@ fun AiStatusCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
                 Text(message, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (onRetry != null) {
+                IconButton(onClick = onRetry) {
+                    Icon(Icons.Default.Refresh, contentDescription = "\u91cd\u8bd5")
+                }
             }
             IconButton(onClick = onDismiss) {
                 Icon(Icons.Default.Close, contentDescription = "\u5173\u95ed\u63d0\u793a")

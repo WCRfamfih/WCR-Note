@@ -123,45 +123,65 @@ class NoteEditorViewModel(
                     AiActionType.GenerateTitle -> 24
                 }.coerceAtMost(settings.maxCompletionLength.coerceAtLeast(24) * 4)
             )
-            _uiState.update {
-                it.copy(
-                    completion = CompletionUiState(),
-                    manualAi = ManualAiUiState(loading = true, actionLabel = actionType.label)
-                )
-            }
-            runCatching { aiRepository.runAction(request) }
-                .onSuccess { result ->
-                    if (actionType == AiActionType.GenerateTitle) {
-                        _uiState.update {
-                            it.copy(
-                                title = result.text,
-                                manualAi = ManualAiUiState(result = result.text, actionLabel = actionType.label)
-                            )
-                        }
-                        scheduleSave()
-                    } else {
-                        _uiState.update {
-                            it.copy(
-                                manualAi = ManualAiUiState(
-                                    result = result.text.takeIf(String::isNotBlank),
-                                    actionLabel = actionType.label,
-                                    replaceSelection = shouldReplaceSelection(actionType, selectedText)
-                                )
-                            )
-                        }
+            executeManualAction(request, selectedText)
+        }
+    }
+
+    fun retryManualAction() {
+        val request = _uiState.value.manualAi.retryRequest ?: return
+        completionJob?.cancel()
+        viewModelScope.launch {
+            executeManualAction(
+                request = request,
+                selectedText = request.selectedText
+            )
+        }
+    }
+
+    private suspend fun executeManualAction(
+        request: AiActionRequest,
+        selectedText: String?
+    ) {
+        val actionType = request.actionType
+        _uiState.update {
+            it.copy(
+                completion = CompletionUiState(),
+                manualAi = ManualAiUiState(loading = true, actionLabel = actionType.label)
+            )
+        }
+        runCatching { aiRepository.runAction(request) }
+            .onSuccess { result ->
+                if (actionType == AiActionType.GenerateTitle) {
+                    _uiState.update {
+                        it.copy(
+                            title = result.text,
+                            manualAi = ManualAiUiState(result = result.text, actionLabel = actionType.label)
+                        )
                     }
-                }
-                .onFailure { error ->
-                    _uiState.update { state ->
-                        state.copy(
+                    scheduleSave()
+                } else {
+                    _uiState.update {
+                        it.copy(
                             manualAi = ManualAiUiState(
+                                result = result.text.takeIf(String::isNotBlank),
                                 actionLabel = actionType.label,
-                                errorMessage = "\u0041\u0049 \u64cd\u4f5c\u5931\u8d25\uff1a${formatErrorMessage(error)}"
+                                replaceSelection = shouldReplaceSelection(actionType, selectedText)
                             )
                         )
                     }
                 }
-        }
+            }
+            .onFailure { error ->
+                _uiState.update { state ->
+                    state.copy(
+                        manualAi = ManualAiUiState(
+                            actionLabel = actionType.label,
+                            errorMessage = "\u0041\u0049 \u64cd\u4f5c\u5931\u8d25\uff1a${formatErrorMessage(error)}",
+                            retryRequest = request
+                        )
+                    )
+                }
+            }
     }
 
     fun acceptManualAiResult() {
