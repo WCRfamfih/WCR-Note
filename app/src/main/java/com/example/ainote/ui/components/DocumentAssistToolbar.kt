@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,6 +37,7 @@ fun DocumentAssistToolbar(
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 6.dp)
         ) {
+            AiCompletionButton { onAction(MarkdownFormatAction.ManualCompletion) }
             ToolButton("<") { onAction(MarkdownFormatAction.Outdent) }
             ToolButton(">") { onAction(MarkdownFormatAction.Indent) }
             ToolButton("H1") { onAction(MarkdownFormatAction.Heading1) }
@@ -44,6 +48,23 @@ fun DocumentAssistToolbar(
             ToolButton("S", textDecoration = TextDecoration.LineThrough) { onAction(MarkdownFormatAction.Strike) }
             ToolButton("U", textDecoration = TextDecoration.Underline) { onAction(MarkdownFormatAction.Underline) }
         }
+    }
+}
+
+@Composable
+private fun AiCompletionButton(
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .height(44.dp)
+            .padding(horizontal = 2.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.AutoAwesome,
+            contentDescription = "手动 AI 补全"
+        )
     }
 }
 

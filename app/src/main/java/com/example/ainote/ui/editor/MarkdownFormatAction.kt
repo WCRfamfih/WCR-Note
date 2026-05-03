@@ -1,6 +1,7 @@
 package com.example.ainote.ui.editor
 
 enum class MarkdownFormatAction {
+    ManualCompletion,
     Outdent,
     Indent,
     Heading1,

@@ -167,6 +167,10 @@ class NoteEditorViewModel(
     fun applyMarkdownFormat(action: MarkdownFormatAction) {
         val current = _uiState.value.content
         val next = when (action) {
+            MarkdownFormatAction.ManualCompletion -> {
+                requestCompletionNow()
+                return
+            }
             MarkdownFormatAction.Outdent -> transformSelectedLines(current, ::outdentLine)
             MarkdownFormatAction.Indent -> transformSelectedLines(current) { "    $it" }
             MarkdownFormatAction.Heading1 -> toggleHeading(current, 1)
