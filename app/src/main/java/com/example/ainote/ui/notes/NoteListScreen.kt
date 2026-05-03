@@ -44,6 +44,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import com.example.ainote.ui.components.markdownAnnotatedString
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -407,7 +408,11 @@ private fun NoteCard(note: Note, onOpen: () -> Unit, onLongPress: () -> Unit) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = note.summary.ifBlank { "空白笔记" },
+                text = markdownAnnotatedString(
+                    note.summary.ifBlank { "空白笔记" },
+                    MaterialTheme.typography.bodyMedium,
+                    MaterialTheme.colorScheme
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 5,

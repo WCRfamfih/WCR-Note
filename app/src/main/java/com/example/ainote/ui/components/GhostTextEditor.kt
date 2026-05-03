@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onSizeChanged
@@ -170,11 +171,11 @@ fun GhostTextEditor(
     }
 }
 
-private fun markdownVisualTransformation(
+fun markdownAnnotatedString(
+    inputText: String,
     textStyle: TextStyle,
     colorScheme: ColorScheme
-): VisualTransformation = VisualTransformation { text ->
-    val inputText = text.text
+): AnnotatedString {
     val builder = AnnotatedString.Builder(inputText)
     val baseStyle = SpanStyle(
         color = textStyle.color,
@@ -186,7 +187,7 @@ private fun markdownVisualTransformation(
     )
     val headingSize = textStyle.fontSize.takeIf { it != TextUnit.Unspecified } ?: 18.sp
 
-    val hiddenMarkerStyle = baseStyle.copy(color = colorScheme.background)
+    val hiddenMarkerStyle = baseStyle.copy(color = Color.Transparent)
     val headingRegex = Regex("^(#{1,3})\\s+.*$", RegexOption.MULTILINE)
     headingRegex.findAll(inputText).forEach { match ->
         val level = match.groupValues[1].length
@@ -238,7 +239,14 @@ private fun markdownVisualTransformation(
         hiddenMarkerStyle = hiddenMarkerStyle
     )
 
-    TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+    return builder.toAnnotatedString()
+}
+
+private fun markdownVisualTransformation(
+    textStyle: TextStyle,
+    colorScheme: ColorScheme
+): VisualTransformation = VisualTransformation { text ->
+    TransformedText(markdownAnnotatedString(text.text, textStyle, colorScheme), OffsetMapping.Identity)
 }
 
 private fun applyMarkdownWrapper(
