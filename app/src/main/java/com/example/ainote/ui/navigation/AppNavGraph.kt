@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.example.ainote.di.AppContainer
 import com.example.ainote.ui.editor.NoteEditorScreen
 import com.example.ainote.ui.notes.NoteListScreen
+import com.example.ainote.ui.settings.AiSettingsScreen
 import com.example.ainote.ui.settings.SettingsScreen
 
 @Composable
@@ -39,6 +40,14 @@ fun AppNavGraph(container: AppContainer) {
         }
         composable("settings") {
             SettingsScreen(
+                dataStore = container.settingsDataStore,
+                aiRepository = container.aiRepository,
+                onOpenAiSettings = { navController.navigate("ai_settings") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable("ai_settings") {
+            AiSettingsScreen(
                 dataStore = container.settingsDataStore,
                 aiRepository = container.aiRepository,
                 onBack = { navController.popBackStack() }

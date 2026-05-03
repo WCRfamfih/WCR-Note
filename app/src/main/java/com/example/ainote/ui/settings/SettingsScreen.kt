@@ -1,5 +1,7 @@
 package com.example.ainote.ui.settings
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,11 +9,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -20,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -42,10 +45,76 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.SettingsDataStore
+import com.example.ainote.data.settings.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    dataStore: SettingsDataStore,
+    aiRepository: AiRepository,
+    onOpenAiSettings: () -> Unit,
+    onBack: () -> Unit
+) {
+    val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(dataStore, aiRepository))
+    val settings by viewModel.settings.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("\u8bbe\u7f6e") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "\u8fd4\u56de")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                ListItem(
+                    modifier = Modifier.clickable(onClick = onOpenAiSettings),
+                    headlineContent = { Text("AI \u8bbe\u7f6e") },
+                    supportingContent = { Text("\u670d\u52a1\u5546\u3001API Key\u3001\u81ea\u52a8\u8865\u5168\u548c\u9690\u79c1\u4e0a\u4e0b\u6587") },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    }
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("\u989c\u8272\u4e3b\u9898", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                ThemeMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = settings.themeMode == mode,
+                        onClick = { viewModel.updateThemeMode(mode) },
+                        label = { Text(mode.label) },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("\u6587\u5b57\u5927\u5c0f\uff1a${settings.editorTextSizeSp} sp", style = MaterialTheme.typography.titleSmall)
+            Slider(
+                value = settings.editorTextSizeSp.toFloat(),
+                onValueChange = { viewModel.updateEditorTextSizeSp(it.toInt()) },
+                valueRange = 14f..28f,
+                steps = 13
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AiSettingsScreen(
     dataStore: SettingsDataStore,
     aiRepository: AiRepository,
     onBack: () -> Unit
@@ -58,7 +127,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("\u8bbe\u7f6e") },
+                title = { Text("AI \u8bbe\u7f6e") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "\u8fd4\u56de")
@@ -147,6 +216,12 @@ fun SettingsScreen(
                 description = "\u505c\u6b62\u8f93\u5165\u540e\u663e\u793a\u4e00\u6761\u5019\u9009\u8865\u5168\uff0c\u63a5\u53d7\u540e\u624d\u5199\u5165\u6b63\u6587\u3002",
                 checked = settings.autoCompletionEnabled,
                 onCheckedChange = viewModel::updateAutoCompletionEnabled
+            )
+            SettingSwitch(
+                title = "\u4f18\u5148\u4e2d\u6587\u6587\u672c\u81ea\u52a8\u8865\u5168",
+                description = "\u5f00\u542f\u65f6\u53ea\u5728\u5149\u6807\u524d\u5305\u542b\u4e2d\u6587\u65f6\u81ea\u52a8\u8865\u5168\uff1b\u5173\u95ed\u540e\u5176\u4ed6\u8bed\u8a00\u4e5f\u80fd\u53c2\u4e0e\u3002",
+                checked = settings.preferChineseAutoCompletion,
+                onCheckedChange = viewModel::updatePreferChineseAutoCompletion
             )
             SettingSwitch(
                 title = "\u5141\u8bb8\u6574\u7bc7\u4e0a\u4e0b\u6587",

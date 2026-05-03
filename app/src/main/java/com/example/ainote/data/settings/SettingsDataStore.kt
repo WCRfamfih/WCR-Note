@@ -20,9 +20,12 @@ class SettingsDataStore(private val context: Context) {
             apiBaseUrl = prefs[Keys.ApiBaseUrl] ?: "https://api.openai.com/v1/chat/completions",
             apiModel = prefs[Keys.ApiModel] ?: "gpt-4o-mini",
             autoCompletionEnabled = prefs[Keys.AutoCompletionEnabled] ?: true,
+            preferChineseAutoCompletion = prefs[Keys.PreferChineseAutoCompletion] ?: true,
             completionDelayMs = prefs[Keys.CompletionDelayMs] ?: 700,
             maxCompletionLength = prefs[Keys.MaxCompletionLength] ?: 30,
-            useFullNoteContext = prefs[Keys.UseFullNoteContext] ?: false
+            useFullNoteContext = prefs[Keys.UseFullNoteContext] ?: false,
+            themeMode = ThemeMode.from(prefs[Keys.ThemeMode] ?: ThemeMode.System.name),
+            editorTextSizeSp = prefs[Keys.EditorTextSizeSp] ?: 18
         )
     }
 
@@ -39,9 +42,12 @@ class SettingsDataStore(private val context: Context) {
     }
 
     suspend fun updateAutoCompletionEnabled(value: Boolean) = updateBoolean(Keys.AutoCompletionEnabled, value)
+    suspend fun updatePreferChineseAutoCompletion(value: Boolean) = updateBoolean(Keys.PreferChineseAutoCompletion, value)
     suspend fun updateCompletionDelayMs(value: Long) = updateLong(Keys.CompletionDelayMs, value)
     suspend fun updateMaxCompletionLength(value: Int) = updateInt(Keys.MaxCompletionLength, value)
     suspend fun updateUseFullNoteContext(value: Boolean) = updateBoolean(Keys.UseFullNoteContext, value)
+    suspend fun updateThemeMode(value: ThemeMode) = updateString(Keys.ThemeMode, value.name)
+    suspend fun updateEditorTextSizeSp(value: Int) = updateInt(Keys.EditorTextSizeSp, value)
 
     private suspend fun updateString(key: androidx.datastore.preferences.core.Preferences.Key<String>, value: String) {
         context.settingsDataStore.edit { it[key] = value }
@@ -65,8 +71,11 @@ class SettingsDataStore(private val context: Context) {
         val ApiBaseUrl = stringPreferencesKey("api_base_url")
         val ApiModel = stringPreferencesKey("api_model")
         val AutoCompletionEnabled = booleanPreferencesKey("auto_completion_enabled")
+        val PreferChineseAutoCompletion = booleanPreferencesKey("prefer_chinese_auto_completion")
         val CompletionDelayMs = longPreferencesKey("completion_delay_ms")
         val MaxCompletionLength = intPreferencesKey("max_completion_length")
         val UseFullNoteContext = booleanPreferencesKey("use_full_note_context")
+        val ThemeMode = stringPreferencesKey("theme_mode")
+        val EditorTextSizeSp = intPreferencesKey("editor_text_size_sp")
     }
 }

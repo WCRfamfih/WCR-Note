@@ -5,11 +5,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import com.example.ainote.data.settings.ThemeMode
 
 @Composable
-fun AiNoteTheme(content: @Composable () -> Unit) {
+fun AiNoteTheme(
+    themeMode: ThemeMode = ThemeMode.System,
+    content: @Composable () -> Unit
+) {
+    val useDarkTheme = when (themeMode) {
+        ThemeMode.Light -> false
+        ThemeMode.Dark -> true
+        ThemeMode.System -> isSystemInDarkTheme()
+    }
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme(),
+        colorScheme = if (useDarkTheme) darkColorScheme() else lightColorScheme(),
         content = content
     )
 }

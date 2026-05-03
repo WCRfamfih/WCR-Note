@@ -303,7 +303,12 @@ class NoteEditorViewModel(
             state.content.selection.collapsed &&
             cursor > 0 &&
             state.content.text.take(cursor).trim().length >= 5 &&
+            (!settings.preferChineseAutoCompletion || containsChinese(state.content.text.take(cursor))) &&
             state.completion.suggestion == null
+    }
+
+    private fun containsChinese(text: String): Boolean {
+        return text.any { it in '\u4e00'..'\u9fff' }
     }
 
     private fun TextFieldValue.selectedTextOrNull(): String? {

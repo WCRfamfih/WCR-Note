@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.SettingsDataStore
+import com.example.ainote.data.settings.ThemeMode
 import com.example.ainote.data.settings.UserSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,9 +34,12 @@ class SettingsViewModel(
     }
 
     fun updateAutoCompletionEnabled(value: Boolean) = launch { dataStore.updateAutoCompletionEnabled(value) }
+    fun updatePreferChineseAutoCompletion(value: Boolean) = launch { dataStore.updatePreferChineseAutoCompletion(value) }
     fun updateCompletionDelayMs(value: Long) = launch { dataStore.updateCompletionDelayMs(value) }
     fun updateMaxCompletionLength(value: Int) = launch { dataStore.updateMaxCompletionLength(value) }
     fun updateUseFullNoteContext(value: Boolean) = launch { dataStore.updateUseFullNoteContext(value) }
+    fun updateThemeMode(value: ThemeMode) = launch { dataStore.updateThemeMode(value) }
+    fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
 
     fun testConnection() {
         _testStatus.value = "\u6b63\u5728\u6d4b\u8bd5\u8fde\u63a5..."

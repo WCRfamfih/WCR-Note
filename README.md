@@ -19,6 +19,10 @@ Android AI writing note MVP.
 - Failed manual AI actions can be retried from the status card
 - Selected text replacement for expand, rewrite, and todo actions
 - Settings for API Provider, API Key, API Base URL, Model, auto completion, delay, max completion length, and context range
+- AI settings are grouped under a dedicated submenu
+- Theme mode setting: light, dark, or system
+- Editor text size setting
+- Optional Chinese-first automatic completion gate
 - Provider presets for Fake, OpenAI, DeepSeek, and Qwen
 - OpenAI-compatible Chat Completions API support
 - Fake service fallback when Provider is `Fake` or API Key is empty

@@ -35,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.SettingsDataStore
+import com.example.ainote.data.settings.UserSettings
 import com.example.ainote.ui.components.AiActionBottomSheet
 import com.example.ainote.ui.components.AiActionResultCard
 import com.example.ainote.ui.components.AiCompletionCard
@@ -55,6 +56,7 @@ fun NoteEditorScreen(
         factory = NoteEditorViewModel.Factory(noteId, noteRepository, aiRepository, settingsDataStore)
     )
     val state by viewModel.uiState.collectAsState()
+    val settings by settingsDataStore.settings.collectAsState(initial = UserSettings())
     val clipboardManager = LocalClipboardManager.current
     var showAiMenu by remember { mutableStateOf(false) }
     val canShowGhostText = state.completion.suggestion != null &&
@@ -116,6 +118,7 @@ fun NoteEditorScreen(
                     .fillMaxWidth()
                     .weight(1f),
                 ghostText = state.completion.suggestion.takeIf { canShowGhostText },
+                textSizeSp = settings.editorTextSizeSp,
                 onAcceptGhostText = viewModel::acceptCompletion,
                 onDismissGhostText = viewModel::dismissCompletion,
                 onRetryGhostText = viewModel::retryCompletion

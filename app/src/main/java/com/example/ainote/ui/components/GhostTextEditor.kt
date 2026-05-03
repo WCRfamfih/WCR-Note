@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
 @Composable
@@ -39,12 +40,16 @@ fun GhostTextEditor(
     onValueChange: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier,
     ghostText: String?,
+    textSizeSp: Int,
     onAcceptGhostText: () -> Unit,
     onDismissGhostText: () -> Unit,
     onRetryGhostText: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val textStyle = MaterialTheme.typography.bodyLarge.copy(color = colorScheme.onSurface)
+    val textStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = colorScheme.onSurface,
+        fontSize = textSizeSp.sp
+    )
     val ghostStyle = textStyle.copy(color = colorScheme.onSurfaceVariant.copy(alpha = 0.48f))
     var cursorRect by remember { mutableStateOf(Rect.Zero) }
     val scrollState = rememberScrollState()
