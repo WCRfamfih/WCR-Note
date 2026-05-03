@@ -80,7 +80,6 @@ class NoteEditorViewModel(
 
     fun updateContent(value: TextFieldValue) {
         val normalizedValue = if (showMarkdownMarkers) value else value.normalizeMarkdownSelection()
-        val oldText = _uiState.value.content.text
         val current = _uiState.value.content
         
         // Record history if content actually changed
@@ -103,11 +102,7 @@ class NoteEditorViewModel(
             )
         }
         scheduleSave()
-        if (normalizedValue.text.length >= oldText.length) {
-            scheduleCompletion()
-        } else {
-            completionJob?.cancel()
-        }
+        scheduleCompletion()
     }
 
     fun undo() {
@@ -349,7 +344,14 @@ class NoteEditorViewModel(
         completionJob?.cancel()
         completionJob = viewModelScope.launch {
             val settings = settingsDataStore.settings.first()
-            if (!canRequestCompletion(settings, force)) return@launch
+            if (!canRequestCompletion(settings, force)) {
+                if (force) {
+                    _uiState.update {
+                        it.copy(completion = CompletionUiState(errorMessage = "请把光标放在正文已有内容之后再补全。"))
+                    }
+                }
+                return@launch
+            }
             if (!force) delay(settings.completionDelayMs)
             val state = _uiState.value
             val cursor = state.content.selection.start
@@ -363,12 +365,21 @@ class NoteEditorViewModel(
             _uiState.update { it.copy(completion = CompletionUiState(loading = true)) }
             runCatching { requestCompletion(request, force = force) }
                 .onSuccess { result ->
+                    val suggestion = result.text.takeIf(String::isNotBlank)
                     _uiState.update {
-                        it.copy(completion = CompletionUiState(suggestion = result.text.takeIf(String::isNotBlank)))
+                        it.copy(
+                            completion = if (suggestion == null) {
+                                CompletionUiState(errorMessage = "AI 没有返回可用的补全文字，请重试。")
+                            } else {
+                                CompletionUiState(suggestion = suggestion)
+                            }
+                        )
                     }
                 }
-                .onFailure {
-                    _uiState.update { it.copy(completion = CompletionUiState()) }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(completion = CompletionUiState(errorMessage = "AI 补全失败：${formatErrorMessage(error)}"))
+                    }
                 }
         }
     }
@@ -384,7 +395,7 @@ class NoteEditorViewModel(
         return (settings.autoCompletionEnabled || force) &&
             state.content.selection.collapsed &&
             cursor > 0 &&
-            state.content.text.take(cursor).trim().length >= 5 &&
+            state.content.text.take(cursor).isNotBlank() &&
             (!settings.preferChineseAutoCompletion || containsChinese(state.content.text.take(cursor))) &&
             state.completion.suggestion == null
     }

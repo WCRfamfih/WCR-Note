@@ -4,7 +4,8 @@ import com.example.ainote.domain.model.AiActionRequest
 
 data class CompletionUiState(
     val suggestion: String? = null,
-    val loading: Boolean = false
+    val loading: Boolean = false,
+    val errorMessage: String? = null
 )
 
 data class ManualAiUiState(

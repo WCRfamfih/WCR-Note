@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -93,9 +95,28 @@ fun NoteEditorScreen(
         )
     }
 
+    state.completion.errorMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissCompletion,
+            title = { Text("AI 补全") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = viewModel::retryCompletion) {
+                    Text("重试")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissCompletion) {
+                    Text("关闭")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TopAppBar(
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = { viewModel.saveNow(onBack) }) {
@@ -122,7 +143,11 @@ fun NoteEditorScreen(
                         Icon(Icons.Default.Settings, contentDescription = "\u8bbe\u7f6e")
                     }
                 }
-            )
+                )
+                if (state.completion.loading || state.manualAi.loading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
         },
         bottomBar = {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -201,10 +226,6 @@ fun NoteEditorScreen(
                 onFocusChanged = { bodyFocused = it }
             )
             Spacer(Modifier.height(8.dp))
-            if (state.completion.loading || state.manualAi.loading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-            }
             state.completion.suggestion?.takeUnless { canShowGhostText }?.let { suggestion ->
                 AiCompletionCard(
                     text = suggestion,
