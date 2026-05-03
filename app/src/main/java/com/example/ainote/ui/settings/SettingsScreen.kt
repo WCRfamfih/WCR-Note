@@ -334,6 +334,12 @@ fun AiSettingsScreen(
                 onCheckedChange = viewModel::updateSkipBlankLineAutoCompletion
             )
             SettingSwitch(
+                title = "仅当内容变化时自动补全",
+                description = "开启后，移动光标不会自动请求补全；只有正文内容变化后才会触发。手动补全不受影响。",
+                checked = settings.autoCompleteOnlyOnContentChange,
+                onCheckedChange = viewModel::updateAutoCompleteOnlyOnContentChange
+            )
+            SettingSwitch(
                 title = "显示 AI 补全错误提示",
                 description = "开启后，补全失败或空返回会在底部显示提示；关闭后仅记录到 AI 调试日志。",
                 checked = settings.showCompletionErrorToast,

@@ -39,6 +39,7 @@ class SettingsViewModel(
     fun updateAutoCompletionEnabled(value: Boolean) = launch { dataStore.updateAutoCompletionEnabled(value) }
     fun updatePreferChineseAutoCompletion(value: Boolean) = launch { dataStore.updatePreferChineseAutoCompletion(value) }
     fun updateSkipBlankLineAutoCompletion(value: Boolean) = launch { dataStore.updateSkipBlankLineAutoCompletion(value) }
+    fun updateAutoCompleteOnlyOnContentChange(value: Boolean) = launch { dataStore.updateAutoCompleteOnlyOnContentChange(value) }
     fun updateCompletionDelayMs(value: Long) = launch { dataStore.updateCompletionDelayMs(value) }
     fun updateMaxCompletionLength(value: Int) = launch { dataStore.updateMaxCompletionLength(value) }
     fun updateUseFullNoteContext(value: Boolean) = launch { dataStore.updateUseFullNoteContext(value) }

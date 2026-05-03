@@ -83,6 +83,7 @@ class NoteEditorViewModel(
     fun updateContent(value: TextFieldValue) {
         val normalizedValue = if (showMarkdownMarkers) value else value.normalizeMarkdownSelection()
         val current = _uiState.value.content
+        val contentChanged = current.text != normalizedValue.text
         
         // Record history if content actually changed
         if (current != normalizedValue) {
@@ -104,7 +105,7 @@ class NoteEditorViewModel(
             )
         }
         scheduleSave()
-        scheduleCompletion()
+        scheduleCompletion(contentChanged = contentChanged)
     }
 
     fun undo() {
@@ -342,11 +343,11 @@ class NoteEditorViewModel(
         )
     }
 
-    private fun scheduleCompletion(force: Boolean = false) {
+    private fun scheduleCompletion(force: Boolean = false, contentChanged: Boolean = true) {
         completionJob?.cancel()
         completionJob = viewModelScope.launch {
             val settings = settingsDataStore.settings.first()
-            if (!canRequestCompletion(settings, force)) {
+            if (!canRequestCompletion(settings, force, contentChanged)) {
                 if (force) {
                     AiDebugLogStore.add("Completion skipped", "Manual completion skipped because the cursor is not after existing body text.")
                     _uiState.update {
@@ -396,7 +397,7 @@ class NoteEditorViewModel(
         }
     }
 
-    private fun canRequestCompletion(settings: UserSettings, force: Boolean): Boolean {
+    private fun canRequestCompletion(settings: UserSettings, force: Boolean, contentChanged: Boolean): Boolean {
         val state = _uiState.value
         val cursor = state.content.selection.start
         if (force) {
@@ -405,6 +406,7 @@ class NoteEditorViewModel(
                 state.content.text.take(cursor).isNotBlank()
         }
         return (settings.autoCompletionEnabled || force) &&
+            (!settings.autoCompleteOnlyOnContentChange || contentChanged) &&
             state.content.selection.collapsed &&
             cursor > 0 &&
             state.content.text.take(cursor).isNotBlank() &&

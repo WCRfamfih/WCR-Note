@@ -22,6 +22,7 @@ class SettingsDataStore(private val context: Context) {
             autoCompletionEnabled = prefs[Keys.AutoCompletionEnabled] ?: true,
             preferChineseAutoCompletion = prefs[Keys.PreferChineseAutoCompletion] ?: true,
             skipBlankLineAutoCompletion = prefs[Keys.SkipBlankLineAutoCompletion] ?: true,
+            autoCompleteOnlyOnContentChange = prefs[Keys.AutoCompleteOnlyOnContentChange] ?: true,
             completionDelayMs = prefs[Keys.CompletionDelayMs] ?: 700,
             maxCompletionLength = prefs[Keys.MaxCompletionLength] ?: 30,
             useFullNoteContext = prefs[Keys.UseFullNoteContext] ?: false,
@@ -62,6 +63,7 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateAutoCompletionEnabled(value: Boolean) = updateBoolean(Keys.AutoCompletionEnabled, value)
     suspend fun updatePreferChineseAutoCompletion(value: Boolean) = updateBoolean(Keys.PreferChineseAutoCompletion, value)
     suspend fun updateSkipBlankLineAutoCompletion(value: Boolean) = updateBoolean(Keys.SkipBlankLineAutoCompletion, value)
+    suspend fun updateAutoCompleteOnlyOnContentChange(value: Boolean) = updateBoolean(Keys.AutoCompleteOnlyOnContentChange, value)
     suspend fun updateCompletionDelayMs(value: Long) = updateLong(Keys.CompletionDelayMs, value)
     suspend fun updateMaxCompletionLength(value: Int) = updateInt(Keys.MaxCompletionLength, value)
     suspend fun updateUseFullNoteContext(value: Boolean) = updateBoolean(Keys.UseFullNoteContext, value)
@@ -124,6 +126,7 @@ class SettingsDataStore(private val context: Context) {
         val AutoCompletionEnabled = booleanPreferencesKey("auto_completion_enabled")
         val PreferChineseAutoCompletion = booleanPreferencesKey("prefer_chinese_auto_completion")
         val SkipBlankLineAutoCompletion = booleanPreferencesKey("skip_blank_line_auto_completion")
+        val AutoCompleteOnlyOnContentChange = booleanPreferencesKey("auto_complete_only_on_content_change")
         val CompletionDelayMs = longPreferencesKey("completion_delay_ms")
         val MaxCompletionLength = intPreferencesKey("max_completion_length")
         val UseFullNoteContext = booleanPreferencesKey("use_full_note_context")

@@ -8,6 +8,7 @@ data class UserSettings(
     val autoCompletionEnabled: Boolean = true,
     val preferChineseAutoCompletion: Boolean = true,
     val skipBlankLineAutoCompletion: Boolean = true,
+    val autoCompleteOnlyOnContentChange: Boolean = true,
     val completionDelayMs: Long = 700,
     val maxCompletionLength: Int = 30,
     val useFullNoteContext: Boolean = false,
