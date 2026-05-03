@@ -31,6 +31,8 @@ data class NoteEditorUiState(
     val wordCount: Int = 0,
     val completion: CompletionUiState = CompletionUiState(),
     val manualAi: ManualAiUiState = ManualAiUiState(),
+    val canUndo: Boolean = false,
+    val canRedo: Boolean = false,
     val isLoaded: Boolean = false
 )
 
@@ -47,6 +49,8 @@ class NoteEditorViewModel(
     private val _uiState = MutableStateFlow(NoteEditorUiState(noteId = noteId))
     val uiState: StateFlow<NoteEditorUiState> = _uiState
 
+    private val undoStack = ArrayDeque<TextFieldValue>()
+    private val redoStack = ArrayDeque<TextFieldValue>()
     private var saveJob: Job? = null
     private var completionJob: Job? = null
     private var initialized = false
@@ -69,12 +73,25 @@ class NoteEditorViewModel(
 
     fun updateContent(value: TextFieldValue) {
         val oldText = _uiState.value.content.text
+        val current = _uiState.value.content
+        
+        // Record history if content actually changed
+        if (current != value) {
+            undoStack.addLast(current)
+            if (undoStack.size > 100) {
+                undoStack.removeFirst()
+            }
+            redoStack.clear()
+        }
+        
         _uiState.update {
             it.copy(
                 content = value,
                 wordCount = value.text.length,
                 completion = CompletionUiState(),
-                manualAi = it.manualAi.copy(result = null, statusMessage = null, errorMessage = null)
+                manualAi = it.manualAi.copy(result = null, statusMessage = null, errorMessage = null),
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty()
             )
         }
         scheduleSave()
@@ -82,6 +99,38 @@ class NoteEditorViewModel(
             scheduleCompletion()
         } else {
             completionJob?.cancel()
+        }
+    }
+
+    fun undo() {
+        val current = _uiState.value.content
+        val previous = undoStack.removeLastOrNull() ?: return
+        redoStack.addLast(current)
+        _uiState.update {
+            it.copy(
+                content = previous,
+                wordCount = previous.text.length,
+                completion = CompletionUiState(),
+                manualAi = it.manualAi.copy(result = null, statusMessage = null, errorMessage = null),
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty()
+            )
+        }
+    }
+
+    fun redo() {
+        val current = _uiState.value.content
+        val next = redoStack.removeLastOrNull() ?: return
+        undoStack.addLast(current)
+        _uiState.update {
+            it.copy(
+                content = next,
+                wordCount = next.text.length,
+                completion = CompletionUiState(),
+                manualAi = it.manualAi.copy(result = null, statusMessage = null, errorMessage = null),
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty()
+            )
         }
     }
 
