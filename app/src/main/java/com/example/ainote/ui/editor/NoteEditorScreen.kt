@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -71,6 +74,7 @@ fun NoteEditorScreen(
     val canShowGhostText = state.completion.suggestion != null &&
         state.content.selection.collapsed &&
         canShowInlineGhostText(state.content)
+    val contentScrollState = rememberScrollState()
 
     BackHandler {
         viewModel.saveNow(onBack)
@@ -118,6 +122,7 @@ fun NoteEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(contentScrollState)
                 .padding(16.dp)
         ) {
             OutlinedTextField(
@@ -136,7 +141,7 @@ fun NoteEditorScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .heightIn(min = 320.dp),
                 ghostText = state.completion.suggestion.takeIf { canShowGhostText },
                 textSizeSp = settings.editorTextSizeSp,
                 onAcceptGhostText = viewModel::acceptCompletion,

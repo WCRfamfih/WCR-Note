@@ -392,7 +392,7 @@ class NoteEditorViewModel(
         suffix: String
     ): TextFieldValue {
         val range = if (value.selection.collapsed) {
-            targetLineRange(value)
+            targetWordRange(value)
         } else {
             value.selection.min to value.selection.max
         }
@@ -404,6 +404,23 @@ class NoteEditorViewModel(
             "$prefix$target$suffix"
         }
         return replaceTarget(value, range.first, range.second, transformed, selectReplacement = true)
+    }
+
+    private fun targetWordRange(value: TextFieldValue): Pair<Int, Int> {
+        val text = value.text
+        val cursor = value.selection.start.coerceIn(0, text.length)
+        if (text.isEmpty()) return 0 to 0
+        val before = if (cursor > 0) text[cursor - 1] else null
+        val after = text.getOrNull(cursor)
+        val insideWord = before?.isWhitespace() == false || after?.isWhitespace() == false
+        if (insideWord) {
+            var start = cursor
+            while (start > 0 && !text[start - 1].isWhitespace()) start--
+            var end = cursor
+            while (end < text.length && !text[end].isWhitespace()) end++
+            return start to end
+        }
+        return targetLineRange(value)
     }
 
     private fun replaceTarget(

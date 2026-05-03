@@ -6,12 +6,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -63,7 +62,6 @@ fun GhostTextEditor(
     var cursorRect by remember { mutableStateOf(Rect.Zero) }
     var editorSize by remember { mutableStateOf(IntSize.Zero) }
     var controlsSize by remember { mutableStateOf(IntSize.Zero) }
-    val scrollState = rememberScrollState()
 
     Box(
         modifier = modifier
@@ -75,9 +73,8 @@ fun GhostTextEditor(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier
-                .fillMaxSize()
-                .onFocusChanged { onFocusChanged(it.isFocused) }
-                .verticalScroll(scrollState),
+                .fillMaxWidth()
+                .onFocusChanged { onFocusChanged(it.isFocused) },
             textStyle = textStyle,
             cursorBrush = SolidColor(colorScheme.primary),
             onTextLayout = { layoutResult ->
@@ -101,8 +98,8 @@ fun GhostTextEditor(
             val editorWidth = max(editorSize.width - horizontalPaddingPx, 0)
             val cursorRight = cursorRect.right.roundToInt()
             val cursorLeft = cursorRect.left.roundToInt()
-            val cursorTop = cursorRect.top.roundToInt() - scrollState.value
-            val cursorBottom = cursorRect.bottom.roundToInt() - scrollState.value
+            val cursorTop = cursorRect.top.roundToInt()
+            val cursorBottom = cursorRect.bottom.roundToInt()
             val minInlineWidth = 96
             val inlineRemainingWidth = editorWidth - cursorRight
             val wrapGhostToNextLine = inlineRemainingWidth < minInlineWidth
