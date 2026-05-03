@@ -440,22 +440,33 @@ class NoteEditorViewModel(
         prefix: String,
         suffix: String
     ): TextFieldValue {
-        val range = if (value.selection.collapsed) {
-            targetWordRange(value)
+        val initialRange = if (value.selection.collapsed) {
+            targetWordRange(value, prefix, suffix)
         } else {
             value.selection.min to value.selection.max
         }
         val text = value.text
+        val range = expandFormattedRange(text, initialRange, prefix, suffix)
         val target = text.substring(range.first, range.second)
-        val transformed = if (target.startsWith(prefix) && target.endsWith(suffix) && target.length >= prefix.length + suffix.length) {
+        val unwrap = target.startsWith(prefix) && target.endsWith(suffix) && target.length >= prefix.length + suffix.length
+        val transformed = if (unwrap) {
             target.removePrefix(prefix).removeSuffix(suffix)
         } else {
             "$prefix$target$suffix"
         }
-        return replaceTarget(value, range.first, range.second, transformed, selectReplacement = true)
+        val nextText = text.replaceRange(range.first, range.second, transformed)
+        val selection = if (unwrap) {
+            TextRange(range.first, range.first + transformed.length)
+        } else {
+            TextRange(
+                range.first + prefix.length,
+                range.first + transformed.length - suffix.length
+            )
+        }
+        return value.copy(text = nextText, selection = selection)
     }
 
-    private fun targetWordRange(value: TextFieldValue): Pair<Int, Int> {
+    private fun targetWordRange(value: TextFieldValue, prefix: String, suffix: String): Pair<Int, Int> {
         val text = value.text
         val cursor = value.selection.start.coerceIn(0, text.length)
         if (text.isEmpty()) return 0 to 0
@@ -467,9 +478,31 @@ class NoteEditorViewModel(
             while (start > 0 && !text[start - 1].isWhitespace()) start--
             var end = cursor
             while (end < text.length && !text[end].isWhitespace()) end++
-            return start to end
+            return expandFormattedRange(text, start to end, prefix, suffix)
         }
         return targetLineRange(value)
+    }
+
+    private fun expandFormattedRange(
+        text: String,
+        range: Pair<Int, Int>,
+        prefix: String,
+        suffix: String
+    ): Pair<Int, Int> {
+        val start = range.first
+        val end = range.second
+        val wrappedStart = start - prefix.length
+        val wrappedEnd = end + suffix.length
+        return if (
+            wrappedStart >= 0 &&
+            wrappedEnd <= text.length &&
+            text.substring(wrappedStart, start) == prefix &&
+            text.substring(end, wrappedEnd) == suffix
+        ) {
+            wrappedStart to wrappedEnd
+        } else {
+            range
+        }
     }
 
     private fun replaceTarget(
