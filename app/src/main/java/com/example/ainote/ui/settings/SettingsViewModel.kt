@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.settings.AiProviderPreset
+import com.example.ainote.data.settings.NoteSortDirection
+import com.example.ainote.data.settings.NoteSortField
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.ThemeMode
 import com.example.ainote.data.settings.UserSettings
@@ -40,6 +42,8 @@ class SettingsViewModel(
     fun updateUseFullNoteContext(value: Boolean) = launch { dataStore.updateUseFullNoteContext(value) }
     fun updateThemeMode(value: ThemeMode) = launch { dataStore.updateThemeMode(value) }
     fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
+    fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
+    fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }
 
     fun testConnection() {
         _testStatus.value = "\u6b63\u5728\u6d4b\u8bd5\u8fde\u63a5..."

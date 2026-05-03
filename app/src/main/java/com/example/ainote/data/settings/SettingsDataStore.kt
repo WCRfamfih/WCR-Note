@@ -25,7 +25,9 @@ class SettingsDataStore(private val context: Context) {
             maxCompletionLength = prefs[Keys.MaxCompletionLength] ?: 30,
             useFullNoteContext = prefs[Keys.UseFullNoteContext] ?: false,
             themeMode = ThemeMode.from(prefs[Keys.ThemeMode] ?: ThemeMode.System.name),
-            editorTextSizeSp = prefs[Keys.EditorTextSizeSp] ?: 18
+            editorTextSizeSp = prefs[Keys.EditorTextSizeSp] ?: 18,
+            noteSortField = NoteSortField.from(prefs[Keys.NoteSortField] ?: NoteSortField.Time.name),
+            noteSortDirection = NoteSortDirection.from(prefs[Keys.NoteSortDirection] ?: NoteSortDirection.Descending.name)
         )
     }
 
@@ -57,6 +59,8 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateUseFullNoteContext(value: Boolean) = updateBoolean(Keys.UseFullNoteContext, value)
     suspend fun updateThemeMode(value: ThemeMode) = updateString(Keys.ThemeMode, value.name)
     suspend fun updateEditorTextSizeSp(value: Int) = updateInt(Keys.EditorTextSizeSp, value)
+    suspend fun updateNoteSortField(value: NoteSortField) = updateString(Keys.NoteSortField, value.name)
+    suspend fun updateNoteSortDirection(value: NoteSortDirection) = updateString(Keys.NoteSortDirection, value.name)
     suspend fun addFolder(value: String) {
         val folderName = value.trim().replace('\n', ' ')
         if (folderName.isBlank()) return
@@ -111,5 +115,7 @@ class SettingsDataStore(private val context: Context) {
         val ThemeMode = stringPreferencesKey("theme_mode")
         val EditorTextSizeSp = intPreferencesKey("editor_text_size_sp")
         val Folders = stringPreferencesKey("folders")
+        val NoteSortField = stringPreferencesKey("note_sort_field")
+        val NoteSortDirection = stringPreferencesKey("note_sort_direction")
     }
 }

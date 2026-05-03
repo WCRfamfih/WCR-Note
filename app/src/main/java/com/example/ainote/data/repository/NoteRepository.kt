@@ -50,6 +50,30 @@ class NoteRepository(private val dao: NoteDao) {
         dao.clearFolder(folderName.trim(), System.currentTimeMillis())
     }
 
+    suspend fun renameFolder(oldName: String, newName: String) {
+        val trimmedOldName = oldName.trim()
+        val trimmedNewName = newName.trim()
+        if (trimmedOldName.isBlank() || trimmedNewName.isBlank() || trimmedOldName == trimmedNewName) return
+        dao.renameFolder(trimmedOldName, trimmedNewName, System.currentTimeMillis())
+    }
+
+    suspend fun moveNoteToFolder(id: Long, folderName: String) {
+        dao.moveNote(id, folderName.trim(), System.currentTimeMillis())
+    }
+
+    suspend fun copyNote(id: Long): Long? {
+        val source = dao.getNote(id) ?: return null
+        val now = System.currentTimeMillis()
+        return dao.insert(
+            source.copy(
+                id = 0,
+                title = if (source.title.isBlank()) "" else "${source.title} 副本",
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+    }
+
     private fun NoteEntity.toDomain(): Note = Note(
         id = id,
         title = title,

@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.settings.AiProviderPreset
+import com.example.ainote.data.settings.NoteSortDirection
+import com.example.ainote.data.settings.NoteSortField
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.ThemeMode
 
@@ -108,6 +110,30 @@ fun SettingsScreen(
                 valueRange = 14f..28f,
                 steps = 13
             )
+            Spacer(Modifier.height(20.dp))
+            Text("笔记排序", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                NoteSortField.entries.forEach { field ->
+                    FilterChip(
+                        selected = settings.noteSortField == field,
+                        onClick = { viewModel.updateNoteSortField(field) },
+                        label = { Text(field.label) },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                NoteSortDirection.entries.forEach { direction ->
+                    FilterChip(
+                        selected = settings.noteSortDirection == direction,
+                        onClick = { viewModel.updateNoteSortDirection(direction) },
+                        label = { Text(direction.label) },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            }
         }
     }
 }

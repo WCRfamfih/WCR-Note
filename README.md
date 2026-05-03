@@ -10,6 +10,7 @@ Android AI writing note MVP.
 - DataStore user settings
 - Note list, create, edit, delete, search, and recent-edit sorting
 - Folder-style note management with folder filters, folder creation, and card-based note browsing
+- Folder rename/delete management, long-press note actions, and configurable note sorting
 - Editor auto-save after 800 ms, title extraction, and character count
 - System dark mode support
 - Fake AI completion card; tap to insert at cursor

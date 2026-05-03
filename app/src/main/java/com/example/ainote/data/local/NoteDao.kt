@@ -21,6 +21,12 @@ interface NoteDao {
     @Query("UPDATE notes SET folderName = '', updatedAt = :updatedAt WHERE folderName = :folderName")
     suspend fun clearFolder(folderName: String, updatedAt: Long)
 
+    @Query("UPDATE notes SET folderName = :newName, updatedAt = :updatedAt WHERE folderName = :oldName")
+    suspend fun renameFolder(oldName: String, newName: String, updatedAt: Long)
+
+    @Query("UPDATE notes SET folderName = :folderName, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun moveNote(id: Long, folderName: String, updatedAt: Long)
+
     @Query("SELECT * FROM notes WHERE deleted = 0 ORDER BY pinned DESC, updatedAt DESC")
     fun observeNotes(): Flow<List<NoteEntity>>
 
@@ -29,6 +35,9 @@ interface NoteDao {
 
     @Query("SELECT folderName FROM notes WHERE id = :id LIMIT 1")
     suspend fun getFolderName(id: Long): String?
+
+    @Query("SELECT * FROM notes WHERE id = :id AND deleted = 0 LIMIT 1")
+    suspend fun getNote(id: Long): NoteEntity?
 
     @Query("""
         SELECT * FROM notes

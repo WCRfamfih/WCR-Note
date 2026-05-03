@@ -11,5 +11,7 @@ data class UserSettings(
     val maxCompletionLength: Int = 30,
     val useFullNoteContext: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.System,
-    val editorTextSizeSp: Int = 18
+    val editorTextSizeSp: Int = 18,
+    val noteSortField: NoteSortField = NoteSortField.Time,
+    val noteSortDirection: NoteSortDirection = NoteSortDirection.Descending
 )
