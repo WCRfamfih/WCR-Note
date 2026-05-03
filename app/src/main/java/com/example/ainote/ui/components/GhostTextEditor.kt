@@ -186,6 +186,7 @@ private fun markdownVisualTransformation(
     )
     val headingSize = textStyle.fontSize.takeIf { it != TextUnit.Unspecified } ?: 18.sp
 
+    val hiddenMarkerStyle = baseStyle.copy(color = colorScheme.background)
     val headingRegex = Regex("^(#{1,3})\\s+.*$", RegexOption.MULTILINE)
     headingRegex.findAll(inputText).forEach { match ->
         val level = match.groupValues[1].length
@@ -201,31 +202,40 @@ private fun markdownVisualTransformation(
             lineStart,
             lineEnd
         )
+        builder.addStyle(
+            hiddenMarkerStyle,
+            lineStart,
+            lineStart + level + 1
+        )
     }
 
     applyMarkdownWrapper(
         inputText,
         builder,
         regex = Regex("\\*\\*(.+?)\\*\\*"),
-        style = baseStyle.copy(fontWeight = FontWeight.Bold)
+        style = baseStyle.copy(fontWeight = FontWeight.Bold),
+        hiddenMarkerStyle = hiddenMarkerStyle
     )
     applyMarkdownWrapper(
         inputText,
         builder,
         regex = Regex("~~(.+?)~~"),
-        style = baseStyle.copy(textDecoration = TextDecoration.LineThrough)
+        style = baseStyle.copy(textDecoration = TextDecoration.LineThrough),
+        hiddenMarkerStyle = hiddenMarkerStyle
     )
     applyMarkdownWrapper(
         inputText,
         builder,
         regex = Regex("<u>(.+?)</u>"),
-        style = baseStyle.copy(textDecoration = TextDecoration.Underline)
+        style = baseStyle.copy(textDecoration = TextDecoration.Underline),
+        hiddenMarkerStyle = hiddenMarkerStyle
     )
     applyMarkdownWrapper(
         inputText,
         builder,
         regex = Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)"),
-        style = baseStyle.copy(fontStyle = FontStyle.Italic)
+        style = baseStyle.copy(fontStyle = FontStyle.Italic),
+        hiddenMarkerStyle = hiddenMarkerStyle
     )
 
     TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
@@ -235,7 +245,8 @@ private fun applyMarkdownWrapper(
     text: String,
     builder: AnnotatedString.Builder,
     regex: Regex,
-    style: SpanStyle
+    style: SpanStyle,
+    hiddenMarkerStyle: SpanStyle
 ) {
     regex.findAll(text).forEach { matchResult ->
         val innerGroup = matchResult.groups[1] ?: return@forEach
@@ -245,12 +256,12 @@ private fun applyMarkdownWrapper(
         val closeMarkerEnd = matchResult.range.last + 1
         builder.addStyle(style, innerStart, innerEnd)
         builder.addStyle(
-            style.copy(color = style.color.copy(alpha = 0.72f)),
+            hiddenMarkerStyle,
             openMarkerStart,
             innerStart
         )
         builder.addStyle(
-            style.copy(color = style.color.copy(alpha = 0.72f)),
+            hiddenMarkerStyle,
             innerEnd,
             closeMarkerEnd
         )
