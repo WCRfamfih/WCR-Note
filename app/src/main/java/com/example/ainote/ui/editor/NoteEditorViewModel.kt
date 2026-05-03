@@ -74,7 +74,7 @@ class NoteEditorViewModel(
                 content = value,
                 wordCount = value.text.length,
                 completion = CompletionUiState(),
-                manualAi = it.manualAi.copy(result = null, errorMessage = null)
+                manualAi = it.manualAi.copy(result = null, statusMessage = null, errorMessage = null)
             )
         }
         scheduleSave()
@@ -209,8 +209,19 @@ class NoteEditorViewModel(
         _uiState.update { it.copy(manualAi = ManualAiUiState()) }
     }
 
+    fun markManualAiResultCopied() {
+        _uiState.update { state ->
+            state.copy(
+                manualAi = state.manualAi.copy(
+                    statusMessage = "\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f\u3002",
+                    errorMessage = null
+                )
+            )
+        }
+    }
+
     fun dismissManualAiStatus() {
-        _uiState.update { it.copy(manualAi = it.manualAi.copy(errorMessage = null, loading = false)) }
+        _uiState.update { it.copy(manualAi = it.manualAi.copy(statusMessage = null, errorMessage = null, loading = false)) }
     }
 
     fun saveNow(onSaved: () -> Unit = {}) {

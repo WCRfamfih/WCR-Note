@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -22,22 +23,24 @@ import androidx.compose.ui.unit.dp
 fun AiStatusCard(
     title: String,
     message: String,
+    isError: Boolean = true,
     onRetry: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
+    val accentColor = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.Default.ErrorOutline,
+                if (isError) Icons.Default.ErrorOutline else Icons.Default.Info,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
+                tint = accentColor,
                 modifier = Modifier.padding(end = 12.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                Text(title, style = MaterialTheme.typography.labelMedium, color = accentColor)
                 Text(message, style = MaterialTheme.typography.bodyMedium)
             }
             if (onRetry != null) {

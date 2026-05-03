@@ -10,6 +10,7 @@ data class CompletionUiState(
 data class ManualAiUiState(
     val loading: Boolean = false,
     val result: String? = null,
+    val statusMessage: String? = null,
     val errorMessage: String? = null,
     val actionLabel: String? = null,
     val retryRequest: AiActionRequest? = null,

@@ -1,6 +1,8 @@
 package com.example.ainote.ui.editor
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -51,6 +53,7 @@ fun NoteEditorScreen(
         factory = NoteEditorViewModel.Factory(noteId, noteRepository, aiRepository, settingsDataStore)
     )
     val state by viewModel.uiState.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
     var showAiMenu by remember { mutableStateOf(false) }
     val canShowGhostText = state.completion.suggestion != null &&
         state.content.selection.collapsed &&
@@ -136,7 +139,12 @@ fun NoteEditorScreen(
                 AiActionResultCard(
                     actionLabel = state.manualAi.actionLabel ?: "\u7ed3\u679c",
                     text = result,
+                    primaryActionLabel = if (state.manualAi.replaceSelection) "\u66ff\u6362\u9009\u533a" else "\u63d2\u5165",
                     onAccept = viewModel::acceptManualAiResult,
+                    onCopy = {
+                        clipboardManager.setText(AnnotatedString(result))
+                        viewModel.markManualAiResultCopied()
+                    },
                     onDismiss = viewModel::dismissManualAiResult
                 )
             }
@@ -144,7 +152,16 @@ fun NoteEditorScreen(
                 AiStatusCard(
                     title = "\u0041\u0049 ${state.manualAi.actionLabel ?: "\u64cd\u4f5c"}",
                     message = message,
+                    isError = true,
                     onRetry = viewModel::retryManualAction,
+                    onDismiss = viewModel::dismissManualAiStatus
+                )
+            }
+            state.manualAi.statusMessage?.let { message ->
+                AiStatusCard(
+                    title = "\u0041\u0049 ${state.manualAi.actionLabel ?: "\u64cd\u4f5c"}",
+                    message = message,
+                    isError = false,
                     onDismiss = viewModel::dismissManualAiStatus
                 )
             }

@@ -14,6 +14,7 @@ Android AI writing note MVP.
 - Fake AI completion card; tap to insert at cursor
 - Editor AI action menu: continue writing, expand, make formal, make concise, turn into todos, summarize, generate title
 - Manual AI result card with accept and dismiss
+- Manual AI results can be inserted/replaced or copied to clipboard
 - Manual AI error/status card that cannot be inserted into the note by mistake
 - Failed manual AI actions can be retried from the status card
 - Selected text replacement for expand, rewrite, and todo actions
