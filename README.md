@@ -16,6 +16,7 @@ Android AI writing note MVP.
 - Manual AI result card with accept and dismiss
 - Selected text replacement for expand, rewrite, and todo actions
 - Settings for API Provider, API Key, API Base URL, Model, auto completion, delay, max completion length, and context range
+- Provider presets for Fake, OpenAI, DeepSeek, and Qwen
 - OpenAI-compatible Chat Completions API support
 - Fake service fallback when Provider is `Fake` or API Key is empty
 - API connection test in settings
@@ -37,8 +38,10 @@ For a real OpenAI-compatible provider:
 - Model: the model name supported by that provider
 - API Key: your provider API key
 
+You can also tap a provider preset in Settings. Presets update Provider, Base URL, and Model without changing your API Key.
+
 ## Next Priorities
 
 1. Upgrade completion cards to in-editor ghost text.
-2. Add provider presets such as OpenAI, DeepSeek, and Qwen.
-3. Add an in-editor error/status surface for manual AI actions.
+2. Add an in-editor error/status surface for manual AI actions.
+3. Add per-provider help text and API key links.

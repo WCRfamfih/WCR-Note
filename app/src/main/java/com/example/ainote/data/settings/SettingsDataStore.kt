@@ -30,6 +30,14 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateApiKey(value: String) = updateString(Keys.ApiKey, value)
     suspend fun updateApiBaseUrl(value: String) = updateString(Keys.ApiBaseUrl, value)
     suspend fun updateApiModel(value: String) = updateString(Keys.ApiModel, value)
+    suspend fun applyProviderPreset(preset: AiProviderPreset) {
+        context.settingsDataStore.edit {
+            it[Keys.ApiProvider] = preset.provider
+            it[Keys.ApiBaseUrl] = preset.baseUrl
+            it[Keys.ApiModel] = preset.model
+        }
+    }
+
     suspend fun updateAutoCompletionEnabled(value: Boolean) = updateBoolean(Keys.AutoCompletionEnabled, value)
     suspend fun updateCompletionDelayMs(value: Long) = updateLong(Keys.CompletionDelayMs, value)
     suspend fun updateMaxCompletionLength(value: Int) = updateInt(Keys.MaxCompletionLength, value)

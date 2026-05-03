@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.AiRepository
+import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.SettingsDataStore
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +74,24 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            Text("\u670d\u52a1\u5546\u9884\u8bbe", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                AiProviderPreset.All.forEach { preset ->
+                    ProviderPresetChip(
+                        preset = preset,
+                        selected = settings.apiProvider.equals(preset.provider, ignoreCase = true) &&
+                            settings.apiBaseUrl == preset.baseUrl &&
+                            settings.apiModel == preset.model,
+                        onClick = { viewModel.applyProviderPreset(preset) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = settings.apiProvider,
                 onValueChange = viewModel::updateApiProvider,
@@ -158,6 +179,20 @@ fun SettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ProviderPresetChip(
+    preset: AiProviderPreset,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(preset.label) },
+        modifier = Modifier.padding(end = 8.dp)
+    )
 }
 
 @Composable

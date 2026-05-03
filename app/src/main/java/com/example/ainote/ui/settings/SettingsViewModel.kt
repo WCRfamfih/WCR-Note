@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.ainote.data.repository.AiRepository
+import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,11 @@ class SettingsViewModel(
     fun updateApiKey(value: String) = launch { dataStore.updateApiKey(value) }
     fun updateApiBaseUrl(value: String) = launch { dataStore.updateApiBaseUrl(value) }
     fun updateApiModel(value: String) = launch { dataStore.updateApiModel(value) }
+    fun applyProviderPreset(preset: AiProviderPreset) = launch {
+        dataStore.applyProviderPreset(preset)
+        _testStatus.value = null
+    }
+
     fun updateAutoCompletionEnabled(value: Boolean) = launch { dataStore.updateAutoCompletionEnabled(value) }
     fun updateCompletionDelayMs(value: Long) = launch { dataStore.updateCompletionDelayMs(value) }
     fun updateMaxCompletionLength(value: Int) = launch { dataStore.updateMaxCompletionLength(value) }
