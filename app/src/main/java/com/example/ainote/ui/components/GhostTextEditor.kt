@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -29,10 +30,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 @Composable
@@ -48,17 +54,21 @@ fun GhostTextEditor(
     onFocusChanged: (Boolean) -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val density = LocalDensity.current
     val textStyle = MaterialTheme.typography.bodyLarge.copy(
         color = colorScheme.onSurface,
         fontSize = textSizeSp.sp
     )
     val ghostStyle = textStyle.copy(color = colorScheme.onSurfaceVariant.copy(alpha = 0.48f))
     var cursorRect by remember { mutableStateOf(Rect.Zero) }
+    var editorSize by remember { mutableStateOf(IntSize.Zero) }
+    var controlsSize by remember { mutableStateOf(IntSize.Zero) }
     val scrollState = rememberScrollState()
 
     Box(
         modifier = modifier
             .background(colorScheme.background)
+            .onSizeChanged { editorSize = it }
             .padding(16.dp)
     ) {
         BasicTextField(
@@ -87,16 +97,36 @@ fun GhostTextEditor(
         )
 
         if (!ghostText.isNullOrBlank()) {
+            val horizontalPaddingPx = with(density) { 32.dp.roundToPx() }
+            val editorWidth = max(editorSize.width - horizontalPaddingPx, 0)
+            val cursorRight = cursorRect.right.roundToInt()
+            val cursorLeft = cursorRect.left.roundToInt()
+            val cursorTop = cursorRect.top.roundToInt() - scrollState.value
+            val cursorBottom = cursorRect.bottom.roundToInt() - scrollState.value
+            val minInlineWidth = 96
+            val inlineRemainingWidth = editorWidth - cursorRight
+            val wrapGhostToNextLine = inlineRemainingWidth < minInlineWidth
+            val ghostX = if (wrapGhostToNextLine) 0 else cursorRight.coerceIn(0, editorWidth)
+            val ghostY = if (wrapGhostToNextLine) cursorBottom + 4 else cursorTop
+            val ghostMaxWidthPx = if (wrapGhostToNextLine) editorWidth else max(inlineRemainingWidth, minInlineWidth)
+            val ghostMaxWidth = with(density) { ghostMaxWidthPx.toDp() }
+            val controlsX = min(max(cursorLeft, 0), max(editorWidth - controlsSize.width, 0))
+            val controlsY = if (wrapGhostToNextLine) {
+                ghostY + (textSizeSp * 1.8f).roundToInt()
+            } else {
+                cursorBottom + 12
+            }
             Text(
                 text = ghostText,
                 style = ghostStyle,
                 modifier = Modifier
                     .offset {
                         IntOffset(
-                            x = cursorRect.right.roundToInt(),
-                            y = cursorRect.top.roundToInt() - scrollState.value
+                            x = ghostX,
+                            y = ghostY
                         )
                     }
+                    .widthIn(max = ghostMaxWidth)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -108,12 +138,9 @@ fun GhostTextEditor(
                 shadowElevation = 6.dp,
                 shape = MaterialTheme.shapes.large,
                 color = colorScheme.surface,
-                modifier = Modifier.offset {
-                    IntOffset(
-                        x = cursorRect.left.roundToInt(),
-                        y = cursorRect.bottom.roundToInt() - scrollState.value + 12
-                    )
-                }
+                modifier = Modifier
+                    .offset { IntOffset(x = controlsX, y = controlsY) }
+                    .onSizeChanged { controlsSize = it }
             ) {
                 Row(modifier = Modifier.padding(horizontal = 4.dp)) {
                     IconButton(onClick = onAcceptGhostText) {

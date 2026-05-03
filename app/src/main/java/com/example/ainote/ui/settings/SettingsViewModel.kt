@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.ainote.data.repository.AiRepository
+import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.NoteSortDirection
 import com.example.ainote.data.settings.NoteSortField
@@ -41,6 +42,7 @@ class SettingsViewModel(
     fun updateMaxCompletionLength(value: Int) = launch { dataStore.updateMaxCompletionLength(value) }
     fun updateUseFullNoteContext(value: Boolean) = launch { dataStore.updateUseFullNoteContext(value) }
     fun updateThemeMode(value: ThemeMode) = launch { dataStore.updateThemeMode(value) }
+    fun updateAccentColorPreset(value: AccentColorPreset) = launch { dataStore.updateAccentColorPreset(value) }
     fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
     fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
     fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }

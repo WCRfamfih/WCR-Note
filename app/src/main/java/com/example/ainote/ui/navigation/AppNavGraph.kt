@@ -1,5 +1,7 @@
 package com.example.ainote.ui.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,7 +18,14 @@ import com.example.ainote.ui.settings.SettingsScreen
 fun AppNavGraph(container: AppContainer) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "notes") {
+    NavHost(
+        navController = navController,
+        startDestination = "notes",
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None }
+    ) {
         composable("notes") {
             NoteListScreen(
                 repository = container.noteRepository,

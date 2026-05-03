@@ -23,6 +23,7 @@ Android AI writing note MVP.
 - Settings for API Provider, API Key, API Base URL, Model, auto completion, delay, max completion length, and context range
 - AI settings are grouped under a dedicated submenu
 - Theme mode setting: light, dark, or system
+- Accent color presets for primary controls and highlights
 - Editor text size setting
 - Optional Chinese-first automatic completion gate
 - Provider presets for Fake, OpenAI, DeepSeek, and Qwen
@@ -33,6 +34,7 @@ Android AI writing note MVP.
 - Real API auto-completion throttling to reduce accidental rapid requests
 - In-editor ghost text for completion when the cursor is at the end of a line
 - Floating ghost-text controls for accept, dismiss, and retry
+- Ghost text and floating controls stay within editor bounds near the right edge
 - Completion card fallback when ghost text cannot be displayed safely
 - Markdown document assist toolbar above the keyboard for indent, headings, bold, italic, strikethrough, and underline
 

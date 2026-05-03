@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.AiRepository
+import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.NoteSortDirection
 import com.example.ainote.data.settings.NoteSortField
@@ -98,6 +99,23 @@ fun SettingsScreen(
                         selected = settings.themeMode == mode,
                         onClick = { viewModel.updateThemeMode(mode) },
                         label = { Text(mode.label) },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("强调色预设", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                AccentColorPreset.entries.forEach { preset ->
+                    FilterChip(
+                        selected = settings.accentColorPreset == preset,
+                        onClick = { viewModel.updateAccentColorPreset(preset) },
+                        label = { Text(preset.label) },
                         modifier = Modifier.padding(end = 8.dp)
                     )
                 }

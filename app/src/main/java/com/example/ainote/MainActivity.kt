@@ -15,7 +15,10 @@ class MainActivity : ComponentActivity() {
         val container = (application as AiNoteApplication).container
         setContent {
             val settings by container.settingsDataStore.settings.collectAsState(initial = UserSettings())
-            AiNoteTheme(themeMode = settings.themeMode) {
+            AiNoteTheme(
+                themeMode = settings.themeMode,
+                accentColorPreset = settings.accentColorPreset
+            ) {
                 AppNavGraph(container = container)
             }
         }
