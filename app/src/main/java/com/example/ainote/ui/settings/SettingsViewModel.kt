@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.ainote.data.repository.AiRepository
+import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.NoteSortDirection
@@ -19,13 +20,17 @@ import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val dataStore: SettingsDataStore,
-    private val aiRepository: AiRepository
+    private val aiRepository: AiRepository,
+    private val noteRepository: NoteRepository? = null
 ) : ViewModel() {
     val settings: StateFlow<UserSettings> = dataStore.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UserSettings())
 
     private val _testStatus = MutableStateFlow<String?>(null)
     val testStatus: StateFlow<String?> = _testStatus
+
+    private val _documentStatus = MutableStateFlow<String?>(null)
+    val documentStatus: StateFlow<String?> = _documentStatus
 
     fun updateApiProvider(value: String) = launch { dataStore.updateApiProvider(value) }
     fun updateApiKey(value: String) = launch { dataStore.updateApiKey(value) }
@@ -50,7 +55,15 @@ class SettingsViewModel(
     fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
     fun updateShowMarkdownMarkers(value: Boolean) = launch { dataStore.updateShowMarkdownMarkers(value) }
     fun updateShowCompletionErrorToast(value: Boolean) = launch { dataStore.updateShowCompletionErrorToast(value) }
-    fun updateDocumentDirectoryUri(value: String) = launch { dataStore.updateDocumentDirectoryUri(value) }
+    fun updateDocumentDirectoryUri(value: String) = launch {
+        dataStore.updateDocumentDirectoryUri(value)
+        if (value.isBlank()) {
+            _documentStatus.value = null
+        } else {
+            val imported = noteRepository?.importBackupsFromDirectory(value) ?: 0
+            _documentStatus.value = "已选择目录，导入 $imported 篇备份笔记。"
+        }
+    }
     fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
     fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }
 
@@ -71,11 +84,12 @@ class SettingsViewModel(
 
     class Factory(
         private val dataStore: SettingsDataStore,
-        private val aiRepository: AiRepository
+        private val aiRepository: AiRepository,
+        private val noteRepository: NoteRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return SettingsViewModel(dataStore, aiRepository) as T
+            return SettingsViewModel(dataStore, aiRepository, noteRepository) as T
         }
     }
 }

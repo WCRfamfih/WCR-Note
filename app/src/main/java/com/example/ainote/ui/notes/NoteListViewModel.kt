@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -38,6 +39,15 @@ class NoteListViewModel(
 ) : ViewModel() {
     val query = MutableStateFlow("")
     private val selectedFolder = MutableStateFlow<String?>(null)
+
+    init {
+        viewModelScope.launch {
+            val directoryUri = settingsDataStore.settings.first().documentDirectoryUri
+            if (directoryUri.isNotBlank()) {
+                repository.importBackupsFromDirectory(directoryUri)
+            }
+        }
+    }
 
     val uiState: StateFlow<NoteListUiState> = combine(query, selectedFolder) { textQuery, folder ->
         textQuery to folder

@@ -80,6 +80,24 @@ class NoteRepository(
         )
     }
 
+    suspend fun importBackupsFromDirectory(directoryUri: String): Int {
+        val backupRepository = backupRepository ?: return 0
+        val backups = backupRepository.readBackups(directoryUri)
+        val now = System.currentTimeMillis()
+        backups.forEach { backup ->
+            dao.insert(
+                NoteEntity(
+                    id = backup.id,
+                    title = backup.title.ifBlank { extractTitle(backup.content) },
+                    content = backup.content,
+                    createdAt = now,
+                    updatedAt = now
+                )
+            )
+        }
+        return backups.size
+    }
+
     private fun NoteEntity.toDomain(): Note = Note(
         id = id,
         title = title,

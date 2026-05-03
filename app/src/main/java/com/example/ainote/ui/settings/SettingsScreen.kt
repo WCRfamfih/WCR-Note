@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.debug.AiDebugLogStore
 import com.example.ainote.data.repository.AiRepository
+import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.NoteSortDirection
@@ -62,12 +63,14 @@ import com.example.ainote.data.settings.ThemeMode
 fun SettingsScreen(
     dataStore: SettingsDataStore,
     aiRepository: AiRepository,
+    noteRepository: NoteRepository,
     onOpenAiSettings: () -> Unit,
     onOpenAiDebugLog: () -> Unit,
     onBack: () -> Unit
 ) {
-    val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(dataStore, aiRepository))
+    val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(dataStore, aiRepository, noteRepository))
     val settings by viewModel.settings.collectAsState()
+    val documentStatus by viewModel.documentStatus.collectAsState()
     val context = LocalContext.current
     val directoryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -181,6 +184,10 @@ fun SettingsScreen(
                                 Text("清除")
                             }
                         }
+                    }
+                    documentStatus?.let {
+                        Spacer(Modifier.height(8.dp))
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

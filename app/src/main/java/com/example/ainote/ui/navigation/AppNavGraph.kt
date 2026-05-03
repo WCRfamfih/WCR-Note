@@ -53,6 +53,7 @@ fun AppNavGraph(container: AppContainer) {
             SettingsScreen(
                 dataStore = container.settingsDataStore,
                 aiRepository = container.aiRepository,
+                noteRepository = container.noteRepository,
                 onOpenAiSettings = { navController.navigate("ai_settings") },
                 onOpenAiDebugLog = { navController.navigate("ai_debug_log") },
                 onBack = { navController.popBackStack() }
