@@ -22,7 +22,7 @@ Android AI writing note MVP.
 - API connection test in settings
 - Human-readable API errors for common network, auth, billing, rate limit, and server failures
 - Real API auto-completion throttling to reduce accidental rapid requests
-- In-editor ghost text for completion when the cursor is at the end of the note
+- In-editor ghost text for completion when the cursor is at the end of a line
 - Completion card fallback when ghost text cannot be displayed safely
 
 ## Run
@@ -44,6 +44,6 @@ You can also tap a provider preset in Settings. Presets update Provider, Base UR
 
 ## Next Priorities
 
-1. Improve ghost text positioning for middle-of-text cursor placement.
+1. Improve ghost text positioning when there is text after the cursor on the same line.
 2. Add an in-editor error/status surface for manual AI actions.
 3. Add per-provider help text and API key links.

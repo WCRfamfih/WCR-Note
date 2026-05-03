@@ -53,7 +53,7 @@ fun NoteEditorScreen(
     var showAiMenu by remember { mutableStateOf(false) }
     val canShowGhostText = state.completion.suggestion != null &&
         state.content.selection.collapsed &&
-        state.content.selection.start == state.content.text.length
+        canShowInlineGhostText(state.content)
 
     BackHandler {
         viewModel.saveNow(onBack)
@@ -141,4 +141,11 @@ fun NoteEditorScreen(
             }
         }
     }
+}
+
+private fun canShowInlineGhostText(value: TextFieldValue): Boolean {
+    if (!value.selection.collapsed) return false
+    val cursor = value.selection.start.coerceIn(0, value.text.length)
+    val textAfterCursor = value.text.drop(cursor)
+    return textAfterCursor.isEmpty() || textAfterCursor.first() == '\n'
 }
