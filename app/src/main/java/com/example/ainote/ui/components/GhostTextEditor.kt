@@ -108,7 +108,11 @@ fun GhostTextEditor(
                 visualTransformation = visualTransformation,
                 cursorBrush = SolidColor(colorScheme.primary),
                 onTextLayout = { layoutResult ->
-                    cursorRect = layoutResult.getCursorRect(value.selection.start)
+                    val transformedCursor = markdownTransformedOffset(
+                        inputText = value.text,
+                        originalOffset = value.selection.start
+                    )
+                    cursorRect = layoutResult.getCursorRect(transformedCursor)
                 },
                 decorationBox = { innerTextField ->
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -207,8 +211,16 @@ fun stripMarkdownMarkers(inputText: String): String {
     return markdownPresentation(
         inputText = inputText,
         baseStyle = SpanStyle(),
-        headingSize = TextUnit.Unspecified
+        headingSize = 18.sp
     ).plainText
+}
+
+private fun markdownTransformedOffset(inputText: String, originalOffset: Int): Int {
+    return markdownPresentation(
+        inputText = inputText,
+        baseStyle = SpanStyle(),
+        headingSize = 18.sp
+    ).offsetMapping.originalToTransformed(originalOffset)
 }
 
 private fun markdownPresentation(
