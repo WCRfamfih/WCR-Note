@@ -19,7 +19,12 @@ class BuildCompletionContextUseCase {
             afterCursor = if (useFullNoteContext) after else after.take(300),
             noteTitle = title.ifBlank { null },
             writingMode = WritingMode.Normal,
-            maxLength = maxLength
+            maxLength = maxLength,
+            language = detectLanguage(before + after)
         )
+    }
+
+    private fun detectLanguage(text: String): String {
+        return if (text.any { it in '\u4e00'..'\u9fff' }) "zh" else "auto"
     }
 }

@@ -379,8 +379,7 @@ class NoteEditorViewModel(
         if (force) {
             return state.content.selection.collapsed &&
                 cursor > 0 &&
-                state.content.text.take(cursor).isNotBlank() &&
-                state.completion.suggestion == null
+                state.content.text.take(cursor).isNotBlank()
         }
         return (settings.autoCompletionEnabled || force) &&
             state.content.selection.collapsed &&

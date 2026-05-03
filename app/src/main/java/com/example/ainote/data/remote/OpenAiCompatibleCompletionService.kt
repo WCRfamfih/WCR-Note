@@ -30,7 +30,7 @@ class OpenAiCompatibleCompletionService(
         val startedAt = System.currentTimeMillis()
         val text = requestChatCompletion(
             settings = settings,
-            systemPrompt = completionSystemPrompt(request.maxLength),
+            systemPrompt = completionSystemPrompt(request),
             userPrompt = buildCompletionPrompt(request),
             maxTokens = request.maxLength.coerceAtLeast(16) * 2,
             temperature = 0.3
@@ -152,22 +152,30 @@ class OpenAiCompatibleCompletionService(
         return message?.optString("content").orEmpty()
     }
 
-    private fun completionSystemPrompt(maxLength: Int): String {
-        return "\u4f60\u662f\u4e00\u4e2a\u4e2d\u6587\u5199\u4f5c\u8865\u5168\u52a9\u624b\u3002\u53ea\u8f93\u51fa\u53ef\u4ee5\u81ea\u7136\u63a5\u5728\u5149\u6807\u4f4d\u7f6e\u540e\u7684\u8865\u5168\u6587\u5b57\uff0c\u4e0d\u8981\u89e3\u91ca\uff0c\u4e0d\u8981\u91cd\u590d\u5df2\u6709\u5185\u5bb9\uff0c\u957f\u5ea6\u4e0d\u8d85\u8fc7 ${maxLength} \u4e2a\u5b57\u3002"
+    private fun completionSystemPrompt(request: CompletionRequest): String {
+        val languageRule = if (request.language == "zh") {
+            "Use Simplified Chinese."
+        } else {
+            "Continue in the same language and style as the text before the cursor."
+        }
+        return "You are a multilingual writing completion assistant. " +
+            "Output only text that can naturally continue after the cursor. " +
+            "Do not explain, do not quote, and do not repeat existing content. " +
+            "$languageRule Keep the completion within ${request.maxLength} characters."
     }
 
     private fun buildCompletionPrompt(request: CompletionRequest): String {
         return """
-            笔记标题：
+            Note title:
             ${request.noteTitle.orEmpty()}
 
-            光标前内容：
+            Text before cursor:
             ${request.beforeCursor}
 
-            光标后内容：
+            Text after cursor:
             ${request.afterCursor}
 
-            请输出补全文字：
+            Completion:
         """.trimIndent()
     }
 
