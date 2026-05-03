@@ -19,6 +19,8 @@ Android AI writing note MVP.
 - OpenAI-compatible Chat Completions API support
 - Fake service fallback when Provider is `Fake` or API Key is empty
 - API connection test in settings
+- Human-readable API errors for common network, auth, billing, rate limit, and server failures
+- Real API auto-completion throttling to reduce accidental rapid requests
 
 ## Run
 
@@ -37,6 +39,6 @@ For a real OpenAI-compatible provider:
 
 ## Next Priorities
 
-1. Add better API error messages and request throttling.
-2. Upgrade completion cards to in-editor ghost text.
-3. Add provider presets such as OpenAI, DeepSeek, and Qwen.
+1. Upgrade completion cards to in-editor ghost text.
+2. Add provider presets such as OpenAI, DeepSeek, and Qwen.
+3. Add an in-editor error/status surface for manual AI actions.

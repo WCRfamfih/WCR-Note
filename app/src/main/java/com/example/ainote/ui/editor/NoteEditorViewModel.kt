@@ -237,7 +237,7 @@ class NoteEditorViewModel(
                 useFullNoteContext = settings.useFullNoteContext
             )
             _uiState.update { it.copy(completion = CompletionUiState(loading = true)) }
-            runCatching { requestCompletion(request) }
+            runCatching { requestCompletion(request, force = force) }
                 .onSuccess { result ->
                     _uiState.update {
                         it.copy(completion = CompletionUiState(suggestion = result.text.takeIf(String::isNotBlank)))

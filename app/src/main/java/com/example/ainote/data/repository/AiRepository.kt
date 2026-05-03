@@ -15,8 +15,26 @@ class AiRepository(
     private val fakeService: FakeAiCompletionService = FakeAiCompletionService(),
     private val openAiService: OpenAiCompatibleCompletionService = OpenAiCompatibleCompletionService()
 ) {
+    private var lastAutomaticCompletionAt: Long = 0L
+
     suspend fun completeText(request: CompletionRequest): CompletionResult {
+        return completeText(request, enforceThrottle = true)
+    }
+
+    suspend fun completeTextNow(request: CompletionRequest): CompletionResult {
+        return completeText(request, enforceThrottle = false)
+    }
+
+    private suspend fun completeText(request: CompletionRequest, enforceThrottle: Boolean): CompletionResult {
         val settings = settingsDataStore.settings.first()
+        if (enforceThrottle && !settings.shouldUseFake()) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - lastAutomaticCompletionAt
+            if (elapsed < MIN_REAL_API_COMPLETION_INTERVAL_MS) {
+                throw AiCompletionThrottledException
+            }
+            lastAutomaticCompletionAt = now
+        }
         val result = if (settings.shouldUseFake()) {
             fakeService.completeText(request)
         } else {
@@ -68,4 +86,10 @@ class AiRepository(
             .trim()
             .take(maxLength)
     }
+
+    private companion object {
+        const val MIN_REAL_API_COMPLETION_INTERVAL_MS = 1_500L
+    }
 }
+
+object AiCompletionThrottledException : Exception("Completion request throttled.")

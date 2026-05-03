@@ -15,6 +15,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 class OpenAiCompatibleCompletionService(
@@ -64,12 +66,24 @@ class OpenAiCompatibleCompletionService(
         maxTokens: Int,
         temperature: Double
     ): String = withContext(Dispatchers.IO) {
+        runCatching {
+            executeChatCompletion(settings, systemPrompt, userPrompt, maxTokens, temperature)
+        }.getOrElse { throw it.toAiApiException() }
+    }
+
+    private fun executeChatCompletion(
+        settings: UserSettings,
+        systemPrompt: String,
+        userPrompt: String,
+        maxTokens: Int,
+        temperature: Double
+    ): String {
         val apiKey = settings.apiKey.trim()
         val url = settings.apiBaseUrl.trim()
         val model = settings.apiModel.trim()
-        require(apiKey.isNotBlank()) { "API Key is empty." }
-        require(url.isNotBlank()) { "API base URL is empty." }
-        require(model.isNotBlank()) { "API model is empty." }
+        if (apiKey.isBlank()) throw AiApiException("\u0041\u0050\u0049 \u004b\u0065\u0079 \u4e3a\u7a7a\uff0c\u8bf7\u5148\u5728\u8bbe\u7f6e\u9875\u586b\u5199\u3002")
+        if (url.isBlank()) throw AiApiException("\u0041\u0050\u0049 \u5730\u5740\u4e3a\u7a7a\uff0c\u8bf7\u586b\u5199\u5b8c\u6574\u7684 chat/completions \u5730\u5740\u3002")
+        if (model.isBlank()) throw AiApiException("\u6a21\u578b\u540d\u4e3a\u7a7a\uff0c\u8bf7\u586b\u5199\u670d\u52a1\u5546\u652f\u6301\u7684\u6a21\u578b\u3002")
 
         val payload = JSONObject()
             .put("model", model)
@@ -92,10 +106,42 @@ class OpenAiCompatibleCompletionService(
         client.newCall(httpRequest).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                throw IOException("AI API request failed: HTTP ${response.code}")
+                throw AiApiException(formatHttpError(response.code, body))
             }
-            parseChatCompletion(body)
+            return parseChatCompletion(body)
         }
+    }
+
+    private fun Throwable.toAiApiException(): Throwable {
+        if (this is AiApiException) return this
+        return when (this) {
+            is UnknownHostException -> AiApiException("\u65e0\u6cd5\u89e3\u6790 API \u57df\u540d\uff0c\u8bf7\u68c0\u67e5\u6a21\u62df\u5668\u7f51\u7edc\u3001DNS \u6216\u4ee3\u7406\u8bbe\u7f6e\u3002", this)
+            is SocketTimeoutException -> AiApiException("\u0041\u0049 \u8bf7\u6c42\u8d85\u65f6\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u6216\u68c0\u67e5\u7f51\u7edc\u3002", this)
+            is IOException -> AiApiException("\u7f51\u7edc\u8bf7\u6c42\u5931\u8d25\uff1a${message.orEmpty()}", this)
+            else -> this
+        }
+    }
+
+    private fun formatHttpError(code: Int, body: String): String {
+        val apiMessage = parseErrorMessage(body)
+        val hint = when (code) {
+            400 -> "\u8bf7\u6c42\u53c2\u6570\u6709\u8bef\uff0c\u8bf7\u68c0\u67e5 Model \u548c API Base URL\u3002"
+            401 -> "\u8ba4\u8bc1\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 API Key\u3002"
+            402 -> "\u8d26\u6237\u4f59\u989d\u4e0d\u8db3\u6216\u8ba1\u8d39\u72b6\u6001\u5f02\u5e38\u3002"
+            403 -> "\u6ca1\u6709\u6743\u9650\u8bbf\u95ee\u8be5\u6a21\u578b\u6216 API\u3002"
+            404 -> "\u63a5\u53e3\u5730\u5740\u6216\u6a21\u578b\u4e0d\u5b58\u5728\u3002"
+            429 -> "\u8bf7\u6c42\u8fc7\u4e8e\u9891\u7e41\u6216\u89e6\u53d1\u9650\u6d41\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+            in 500..599 -> "\u670d\u52a1\u5546\u670d\u52a1\u5f02\u5e38\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+            else -> "\u0041\u0049 \u670d\u52a1\u8fd4\u56de\u9519\u8bef\u3002"
+        }
+        return if (apiMessage.isBlank()) "HTTP $code: $hint" else "HTTP $code: $hint $apiMessage"
+    }
+
+    private fun parseErrorMessage(body: String): String {
+        return runCatching {
+            val json = JSONObject(body)
+            json.optJSONObject("error")?.optString("message").orEmpty()
+        }.getOrDefault("")
     }
 
     private fun parseChatCompletion(body: String): String {
