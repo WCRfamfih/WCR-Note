@@ -18,7 +18,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -36,6 +35,7 @@ import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.ui.components.AiActionBottomSheet
 import com.example.ainote.ui.components.AiActionResultCard
 import com.example.ainote.ui.components.AiCompletionCard
+import com.example.ainote.ui.components.GhostTextEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,6 +51,9 @@ fun NoteEditorScreen(
     )
     val state by viewModel.uiState.collectAsState()
     var showAiMenu by remember { mutableStateOf(false) }
+    val canShowGhostText = state.completion.suggestion != null &&
+        state.content.selection.collapsed &&
+        state.content.selection.start == state.content.text.length
 
     BackHandler {
         viewModel.saveNow(onBack)
@@ -97,17 +100,22 @@ fun NoteEditorScreen(
                 singleLine = true
             )
             Spacer(Modifier.height(12.dp))
-            TextField(
+            GhostTextEditor(
                 value = state.content,
                 onValueChange = { value: TextFieldValue -> viewModel.updateContent(value) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                placeholder = { Text("\u5f00\u59cb\u5199\u70b9\u4ec0\u4e48...") }
+                ghostText = state.completion.suggestion.takeIf { canShowGhostText },
+                onAcceptGhostText = viewModel::acceptCompletion
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "${state.wordCount} \u5b57\uff0c\u81ea\u52a8\u4fdd\u5b58",
+                text = if (canShowGhostText) {
+                    "${state.wordCount} \u5b57\uff0c\u70b9\u51fb\u7070\u8272\u5efa\u8bae\u63a5\u53d7\u8865\u5168"
+                } else {
+                    "${state.wordCount} \u5b57\uff0c\u81ea\u52a8\u4fdd\u5b58"
+                },
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -116,7 +124,7 @@ fun NoteEditorScreen(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
             }
-            state.completion.suggestion?.let { suggestion ->
+            state.completion.suggestion?.takeUnless { canShowGhostText }?.let { suggestion ->
                 AiCompletionCard(
                     text = suggestion,
                     onAccept = viewModel::acceptCompletion,
