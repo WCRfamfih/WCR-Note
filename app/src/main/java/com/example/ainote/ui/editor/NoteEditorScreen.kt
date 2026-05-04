@@ -1,7 +1,9 @@
 package com.example.ainote.ui.editor
 
 import android.graphics.Rect
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.layout.Column
@@ -18,12 +20,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,9 +46,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -56,6 +66,11 @@ import com.example.ainote.ui.components.AiCompletionCard
 import com.example.ainote.ui.components.AiStatusCard
 import com.example.ainote.ui.components.DocumentAssistToolbar
 import com.example.ainote.ui.components.GhostTextEditor
+import com.example.ainote.ui.components.stripMarkdownMarkers
+import com.example.ainote.ui.export.NoteImageExporter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,13 +87,19 @@ fun NoteEditorScreen(
     )
     val state by viewModel.uiState.collectAsState()
     val settings by settingsDataStore.settings.collectAsState(initial = UserSettings())
+    val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val density = LocalDensity.current
     val keyboardHeightPx = rememberKeyboardHeightPx()
     val keyboardVisible = keyboardHeightPx > with(density) { 96.dp.roundToPx() }
     var showAiMenu by remember { mutableStateOf(false) }
+    var showShareMenu by remember { mutableStateOf(false) }
     var bodyFocused by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+    val backgroundColor = MaterialTheme.colorScheme.background.toArgb()
+    val textColor = MaterialTheme.colorScheme.onBackground.toArgb()
+    val shareEnabled = !bodyFocused || !keyboardVisible
     val canShowGhostText = state.completion.suggestion != null &&
         state.content.selection.collapsed &&
         canShowInlineGhostText(state.content)
@@ -96,6 +117,46 @@ fun NoteEditorScreen(
                 viewModel.runManualAction(action)
             }
         )
+    }
+
+    if (showShareMenu) {
+        ModalBottomSheet(onDismissRequest = { showShareMenu = false }) {
+            ListItem(
+                headlineContent = { Text("以纯文本复制到剪切板") },
+                supportingContent = { Text("去除 Markdown 特殊字符。") },
+                leadingContent = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                modifier = Modifier.clickable {
+                    clipboardManager.setText(AnnotatedString(stripMarkdownMarkers(state.content.text)))
+                    showShareMenu = false
+                    Toast.makeText(context, "已复制纯文本", Toast.LENGTH_SHORT).show()
+                }
+            )
+            ListItem(
+                headlineContent = { Text("以图片保存") },
+                supportingContent = { Text("保存为保留 Markdown 效果的长图。") },
+                leadingContent = { Icon(Icons.Default.Image, contentDescription = null) },
+                modifier = Modifier.clickable {
+                    showShareMenu = false
+                    coroutineScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            NoteImageExporter.saveNoteImage(
+                                context = context.applicationContext,
+                                title = state.title,
+                                content = state.content.text,
+                                backgroundColor = backgroundColor,
+                                textColor = textColor
+                            )
+                        }
+                        val message = result.fold(
+                            onSuccess = { "图片已保存：$it" },
+                            onFailure = { "图片保存失败：${it.message ?: "未知错误"}" }
+                        )
+                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                    }
+                }
+            )
+            Spacer(Modifier.height(16.dp))
+        }
     }
 
     LaunchedEffect(state.completion.errorMessage, settings.showCompletionErrorToast) {
@@ -142,6 +203,12 @@ fun NoteEditorScreen(
                     }
                     IconButton(onClick = { showAiMenu = true }) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = "\u0041\u0049 \u64cd\u4f5c")
+                    }
+                    IconButton(
+                        onClick = { showShareMenu = true },
+                        enabled = shareEnabled
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = "分享")
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "\u8bbe\u7f6e")
