@@ -81,6 +81,8 @@ class SettingsViewModel(
     fun updateEditorLineSpacingPercent(value: Int) = launch { dataStore.updateEditorLineSpacingPercent(value) }
     fun updateEditorLetterSpacingTenthSp(value: Int) = launch { dataStore.updateEditorLetterSpacingTenthSp(value) }
     fun updateEditorFontPreset(value: EditorFontPreset) = launch { dataStore.updateEditorFontPreset(value) }
+    fun updateCustomEditorFont(uri: String, label: String) = launch { dataStore.updateCustomEditorFont(uri, label) }
+    fun clearCustomEditorFont() = launch { dataStore.clearCustomEditorFont() }
     fun updateShowMarkdownMarkers(value: Boolean) = launch { dataStore.updateShowMarkdownMarkers(value) }
     fun updateShowCompletionErrorToast(value: Boolean) = launch { dataStore.updateShowCompletionErrorToast(value) }
     fun updateKnowledgeBaseEnabled(value: Boolean) = launch { dataStore.updateKnowledgeBaseEnabled(value) }

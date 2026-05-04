@@ -2,6 +2,7 @@ package com.example.ainote.ui.settings
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -172,6 +173,17 @@ private fun displayDirectoryUri(uri: String): String {
     return Uri.decode(uri).substringAfterLast('/').ifBlank { uri }
 }
 
+private fun resolveDocumentName(context: android.content.Context, uri: Uri): String {
+    val fromProvider = runCatching {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+        }
+    }.getOrNull()
+    return fromProvider
+        ?: Uri.decode(uri.lastPathSegment ?: "").substringAfterLast('/').ifBlank { uri.toString() }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DisplaySettingsScreen(
@@ -180,6 +192,14 @@ fun DisplaySettingsScreen(
 ) {
     val viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(dataStore, AiRepository(dataStore)))
     val settings by viewModel.settings.collectAsState()
+    val context = LocalContext.current
+    val fontPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        viewModel.updateCustomEditorFont(uri.toString(), resolveDocumentName(context, uri))
+    }
 
     Scaffold(
         topBar = {
@@ -264,10 +284,39 @@ fun DisplaySettingsScreen(
                 EditorFontPreset.entries.forEach { preset ->
                     FilterChip(
                         selected = settings.editorFontPreset == preset,
-                        onClick = { viewModel.updateEditorFontPreset(preset) },
+                        onClick = {
+                            if (preset == EditorFontPreset.Custom && settings.customEditorFontUri.isBlank()) {
+                                fontPicker.launch(arrayOf("font/*", "application/octet-stream", "*/*"))
+                            } else {
+                                viewModel.updateEditorFontPreset(preset)
+                            }
+                        },
                         label = { Text(preset.label) },
                         modifier = Modifier.padding(end = 8.dp)
                     )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("自定义字体", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = settings.customEditorFontLabel.ifBlank { "未选择字体文件。可通过系统文件选择器导入 .ttf / .otf 等字体。" },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row {
+                        Button(onClick = { fontPicker.launch(arrayOf("font/*", "application/octet-stream", "*/*")) }) {
+                            Text(if (settings.customEditorFontUri.isBlank()) "选择字体" else "更换字体")
+                        }
+                        if (settings.customEditorFontUri.isNotBlank()) {
+                            Spacer(Modifier.padding(horizontal = 4.dp))
+                            Button(onClick = viewModel::clearCustomEditorFont) {
+                                Text("清除字体")
+                            }
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))

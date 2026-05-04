@@ -3,6 +3,7 @@ package com.example.ainote.ui.editor
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Rect
+import android.graphics.Typeface
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -127,8 +128,8 @@ fun NoteEditorScreen(
     val textColor = MaterialTheme.colorScheme.onBackground.toArgb()
     val editorLineHeightSp = settings.editorTextSizeSp * (settings.editorLineSpacingPercent / 100f)
     val editorLetterSpacingSp = settings.editorLetterSpacingTenthSp / 10f
-    val editorFontFamily = remember(settings.editorFontPreset) {
-        settings.editorFontPreset.toFontFamily()
+    val editorFontFamily = remember(settings.editorFontPreset, settings.customEditorFontUri) {
+        settings.toEditorFontFamily(context)
     }
 
     BackHandler {
@@ -477,12 +478,24 @@ private fun canShowInlineGhostText(value: TextFieldValue): Boolean {
     return textAfterCursor.isEmpty() || textAfterCursor.first() == '\n'
 }
 
-private fun EditorFontPreset.toFontFamily(): FontFamily {
+private fun UserSettings.toEditorFontFamily(context: android.content.Context): FontFamily {
+    if (editorFontPreset == EditorFontPreset.Custom && customEditorFontUri.isNotBlank()) {
+        runCatching {
+            context.contentResolver.openFileDescriptor(android.net.Uri.parse(customEditorFontUri), "r")?.use { descriptor ->
+                FontFamily(Typeface.Builder(descriptor.fileDescriptor).build())
+            }
+        }.getOrNull()?.let { return it }
+    }
+    return editorFontPreset.toFallbackFontFamily()
+}
+
+private fun EditorFontPreset.toFallbackFontFamily(): FontFamily {
     return when (this) {
         EditorFontPreset.System -> FontFamily.Default
         EditorFontPreset.Sans -> FontFamily.SansSerif
         EditorFontPreset.Serif -> FontFamily.Serif
         EditorFontPreset.Monospace -> FontFamily.Monospace
         EditorFontPreset.Cursive -> FontFamily.Cursive
+        EditorFontPreset.Custom -> FontFamily.Default
     }
 }

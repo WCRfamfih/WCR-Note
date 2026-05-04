@@ -22,7 +22,8 @@ enum class EditorFontPreset(val label: String) {
     Sans("\u65e0\u886c\u7ebf"),
     Serif("\u886c\u7ebf"),
     Monospace("\u7b49\u5bbd"),
-    Cursive("\u624b\u5199");
+    Cursive("\u624b\u5199"),
+    Custom("\u81ea\u5b9a\u4e49");
 
     companion object {
         fun from(raw: String?): EditorFontPreset {
@@ -55,6 +56,8 @@ data class UserSettings(
     val editorLineSpacingPercent: Int = 140,
     val editorLetterSpacingTenthSp: Int = 0,
     val editorFontPreset: EditorFontPreset = EditorFontPreset.System,
+    val customEditorFontUri: String = "",
+    val customEditorFontLabel: String = "",
     val showMarkdownMarkers: Boolean = false,
     val showCompletionErrorToast: Boolean = true,
     val knowledgeBaseEnabled: Boolean = false,

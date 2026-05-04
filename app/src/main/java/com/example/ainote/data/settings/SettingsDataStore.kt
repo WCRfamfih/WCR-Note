@@ -44,6 +44,8 @@ class SettingsDataStore(private val context: Context) {
             editorLineSpacingPercent = prefs[Keys.EditorLineSpacingPercent] ?: 140,
             editorLetterSpacingTenthSp = prefs[Keys.EditorLetterSpacingTenthSp] ?: 0,
             editorFontPreset = EditorFontPreset.from(prefs[Keys.EditorFontPreset]),
+            customEditorFontUri = prefs[Keys.CustomEditorFontUri] ?: "",
+            customEditorFontLabel = prefs[Keys.CustomEditorFontLabel] ?: "",
             showMarkdownMarkers = prefs[Keys.ShowMarkdownMarkers] ?: false,
             showCompletionErrorToast = prefs[Keys.ShowCompletionErrorToast] ?: true,
             knowledgeBaseEnabled = prefs[Keys.KnowledgeBaseEnabled] ?: false,
@@ -113,6 +115,22 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateEditorLineSpacingPercent(value: Int) = updateInt(Keys.EditorLineSpacingPercent, value)
     suspend fun updateEditorLetterSpacingTenthSp(value: Int) = updateInt(Keys.EditorLetterSpacingTenthSp, value)
     suspend fun updateEditorFontPreset(value: EditorFontPreset) = updateString(Keys.EditorFontPreset, value.name)
+    suspend fun updateCustomEditorFont(uri: String, label: String) {
+        context.settingsDataStore.edit {
+            it[Keys.CustomEditorFontUri] = uri
+            it[Keys.CustomEditorFontLabel] = label
+            it[Keys.EditorFontPreset] = EditorFontPreset.Custom.name
+        }
+    }
+    suspend fun clearCustomEditorFont() {
+        context.settingsDataStore.edit {
+            it[Keys.CustomEditorFontUri] = ""
+            it[Keys.CustomEditorFontLabel] = ""
+            if ((it[Keys.EditorFontPreset] ?: EditorFontPreset.System.name) == EditorFontPreset.Custom.name) {
+                it[Keys.EditorFontPreset] = EditorFontPreset.System.name
+            }
+        }
+    }
     suspend fun updateShowMarkdownMarkers(value: Boolean) = updateBoolean(Keys.ShowMarkdownMarkers, value)
     suspend fun updateShowCompletionErrorToast(value: Boolean) = updateBoolean(Keys.ShowCompletionErrorToast, value)
     suspend fun updateKnowledgeBaseEnabled(value: Boolean) = updateBoolean(Keys.KnowledgeBaseEnabled, value)
@@ -251,6 +269,8 @@ class SettingsDataStore(private val context: Context) {
         val EditorLineSpacingPercent = intPreferencesKey("editor_line_spacing_percent")
         val EditorLetterSpacingTenthSp = intPreferencesKey("editor_letter_spacing_tenth_sp")
         val EditorFontPreset = stringPreferencesKey("editor_font_preset")
+        val CustomEditorFontUri = stringPreferencesKey("custom_editor_font_uri")
+        val CustomEditorFontLabel = stringPreferencesKey("custom_editor_font_label")
         val ShowMarkdownMarkers = booleanPreferencesKey("show_markdown_markers")
         val ShowCompletionErrorToast = booleanPreferencesKey("show_completion_error_toast")
         val KnowledgeBaseEnabled = booleanPreferencesKey("knowledge_base_enabled")
