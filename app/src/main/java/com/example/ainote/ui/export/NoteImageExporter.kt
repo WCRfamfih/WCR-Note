@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.text.Layout
@@ -17,11 +18,36 @@ import android.text.style.StrikethroughSpan
 import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
 import androidx.core.graphics.createBitmap
+import androidx.core.content.FileProvider
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 object NoteImageExporter {
+    fun createShareImage(
+        context: Context,
+        title: String,
+        content: String,
+        backgroundColor: Int,
+        textColor: Int
+    ): Result<ExportedNoteImage> = runCatching {
+        val fileName = imageFileName()
+        val bitmap = renderNoteBitmap(
+            title = title.ifBlank { "\u672a\u547d\u540d\u7b14\u8bb0" },
+            content = content,
+            backgroundColor = backgroundColor,
+            textColor = textColor
+        )
+        val directory = File(context.cacheDir, "shared_images").apply { mkdirs() }
+        val file = File(directory, fileName)
+        file.outputStream().use { output ->
+            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "\u56fe\u7247\u5199\u5165\u5931\u8d25" }
+        }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        ExportedNoteImage(uri = uri, fileName = fileName)
+    }
+
     fun saveNoteImage(
         context: Context,
         title: String,
@@ -35,7 +61,28 @@ object NoteImageExporter {
             backgroundColor = backgroundColor,
             textColor = textColor
         )
-        val fileName = "note-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())}.png"
+        val fileName = imageFileName()
+        saveBitmapToGallery(context, bitmap, fileName)
+        fileName
+    }
+
+    fun saveImageToGallery(
+        context: Context,
+        imageUri: Uri,
+        fileName: String
+    ): Result<String> = runCatching {
+        val bitmap = context.contentResolver.openInputStream(imageUri)?.use { input ->
+            android.graphics.BitmapFactory.decodeStream(input)
+        } ?: error("\u65e0\u6cd5\u8bfb\u53d6\u56fe\u7247")
+        saveBitmapToGallery(context, bitmap, fileName)
+        fileName
+    }
+
+    private fun saveBitmapToGallery(
+        context: Context,
+        bitmap: Bitmap,
+        fileName: String
+    ) {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
@@ -55,8 +102,10 @@ object NoteImageExporter {
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
         }
-        fileName
     }
+
+    private fun imageFileName(): String =
+        "note-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())}.png"
 
     private fun renderNoteBitmap(
         title: String,
@@ -192,3 +241,8 @@ object NoteImageExporter {
         }
     }
 }
+
+data class ExportedNoteImage(
+    val uri: Uri,
+    val fileName: String
+)

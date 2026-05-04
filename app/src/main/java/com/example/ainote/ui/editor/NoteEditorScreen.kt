@@ -1,8 +1,11 @@
 package com.example.ainote.ui.editor
 
+import android.content.Intent
+import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -49,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +71,7 @@ import com.example.ainote.ui.components.AiStatusCard
 import com.example.ainote.ui.components.DocumentAssistToolbar
 import com.example.ainote.ui.components.GhostTextEditor
 import com.example.ainote.ui.components.stripMarkdownMarkers
+import com.example.ainote.ui.export.ExportedNoteImage
 import com.example.ainote.ui.export.NoteImageExporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -94,12 +99,13 @@ fun NoteEditorScreen(
     val keyboardVisible = keyboardHeightPx > with(density) { 96.dp.roundToPx() }
     var showAiMenu by remember { mutableStateOf(false) }
     var showShareMenu by remember { mutableStateOf(false) }
+    var exportedImage by remember { mutableStateOf<ExportedNoteImage?>(null) }
     var bodyFocused by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val backgroundColor = MaterialTheme.colorScheme.background.toArgb()
     val textColor = MaterialTheme.colorScheme.onBackground.toArgb()
-    val shareEnabled = !bodyFocused || !keyboardVisible
+    val isEditingText = bodyFocused && keyboardVisible
     val canShowGhostText = state.completion.suggestion != null &&
         state.content.selection.collapsed &&
         canShowInlineGhostText(state.content)
@@ -132,14 +138,14 @@ fun NoteEditorScreen(
                 }
             )
             ListItem(
-                headlineContent = { Text("以图片保存") },
-                supportingContent = { Text("保存为保留 Markdown 效果的长图。") },
+                headlineContent = { Text("以图片分享") },
+                supportingContent = { Text("先生成长图预览，再选择保存或分享。") },
                 leadingContent = { Icon(Icons.Default.Image, contentDescription = null) },
                 modifier = Modifier.clickable {
                     showShareMenu = false
                     coroutineScope.launch {
                         val result = withContext(Dispatchers.IO) {
-                            NoteImageExporter.saveNoteImage(
+                            NoteImageExporter.createShareImage(
                                 context = context.applicationContext,
                                 title = state.title,
                                 content = state.content.text,
@@ -147,12 +153,61 @@ fun NoteEditorScreen(
                                 textColor = textColor
                             )
                         }
+                        result
+                            .onSuccess { exportedImage = it }
+                            .onFailure {
+                                Toast.makeText(context, "图片生成失败：${it.message ?: "未知错误"}", Toast.LENGTH_LONG).show()
+                            }
+                    }
+                }
+            )
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+
+    exportedImage?.let { image ->
+        val previewBitmap = remember(image.uri) {
+            context.contentResolver.openInputStream(image.uri)?.use { input ->
+                BitmapFactory.decodeStream(input)
+            }
+        }
+        ModalBottomSheet(onDismissRequest = { exportedImage = null }) {
+            previewBitmap?.let { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "图片预览",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(360.dp)
+                        .padding(horizontal = 16.dp)
+                )
+            }
+            ListItem(
+                headlineContent = { Text("保存到相册") },
+                leadingContent = { Icon(Icons.Default.Image, contentDescription = null) },
+                modifier = Modifier.clickable {
+                    coroutineScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            NoteImageExporter.saveImageToGallery(context.applicationContext, image.uri, image.fileName)
+                        }
                         val message = result.fold(
                             onSuccess = { "图片已保存：$it" },
                             onFailure = { "图片保存失败：${it.message ?: "未知错误"}" }
                         )
                         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                     }
+                }
+            )
+            ListItem(
+                headlineContent = { Text("立即分享") },
+                leadingContent = { Icon(Icons.Default.Share, contentDescription = null) },
+                modifier = Modifier.clickable {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/png"
+                        putExtra(Intent.EXTRA_STREAM, image.uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "分享图片"))
                 }
             )
             Spacer(Modifier.height(16.dp))
@@ -189,26 +244,27 @@ fun NoteEditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { viewModel.undo() },
-                        enabled = state.canUndo
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销")
-                    }
-                    IconButton(
-                        onClick = { viewModel.redo() },
-                        enabled = state.canRedo
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做")
+                    if (isEditingText) {
+                        IconButton(
+                            onClick = { viewModel.undo() },
+                            enabled = state.canUndo
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销")
+                        }
+                        IconButton(
+                            onClick = { viewModel.redo() },
+                            enabled = state.canRedo
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做")
+                        }
                     }
                     IconButton(onClick = { showAiMenu = true }) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = "\u0041\u0049 \u64cd\u4f5c")
                     }
-                    IconButton(
-                        onClick = { showShareMenu = true },
-                        enabled = shareEnabled
-                    ) {
-                        Icon(Icons.Default.Share, contentDescription = "分享")
+                    if (!isEditingText) {
+                        IconButton(onClick = { showShareMenu = true }) {
+                            Icon(Icons.Default.Share, contentDescription = "分享")
+                        }
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "\u8bbe\u7f6e")
