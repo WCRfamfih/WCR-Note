@@ -5,6 +5,7 @@ enum class WritingMode {
 }
 
 data class CompletionRequest(
+    val noteId: Long? = null,
     val beforeCursor: String,
     val afterCursor: String,
     val noteTitle: String?,
@@ -32,6 +33,7 @@ enum class AiActionType(val label: String) {
 }
 
 data class AiActionRequest(
+    val noteId: Long? = null,
     val actionType: AiActionType,
     val noteTitle: String?,
     val content: String,

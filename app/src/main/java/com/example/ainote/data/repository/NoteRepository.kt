@@ -2,9 +2,13 @@ package com.example.ainote.data.repository
 
 import com.example.ainote.data.local.NoteDao
 import com.example.ainote.data.local.NoteEntity
+import com.example.ainote.data.local.NoteKnowledgeScopeEntity
+import com.example.ainote.domain.model.KnowledgeScopeSummary
 import com.example.ainote.domain.model.Note
 import com.example.ainote.domain.model.NoteContentType
+import com.example.ainote.domain.model.NoteKnowledgeScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 class NoteRepository(
@@ -40,28 +44,41 @@ class NoteRepository(
         )
     }
 
-    suspend fun saveNote(id: Long, title: String, content: String, createdAt: Long, pinned: Boolean) {
+    suspend fun saveNote(
+        id: Long,
+        title: String,
+        content: String,
+        createdAt: Long,
+        pinned: Boolean,
+        contentType: NoteContentType
+    ) {
         val updatedAt = System.currentTimeMillis()
         val resolvedTitle = title.ifBlank { extractTitle(content) }
         val existing = dao.getNote(id)
-        val contentType = NoteContentType.from(existing?.contentType)
-        dao.update(
-            NoteEntity(
-                id = id,
-                title = resolvedTitle,
-                content = content,
-                createdAt = createdAt,
-                updatedAt = updatedAt,
-                folderName = existing?.folderName ?: dao.getFolderName(id).orEmpty(),
-                contentType = contentType.storageValue,
-                pinned = pinned
-            )
+        val resolvedContentType = existing?.contentType?.let(NoteContentType::from) ?: contentType
+        val entity = NoteEntity(
+            id = id,
+            title = resolvedTitle,
+            content = content,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            folderName = existing?.folderName ?: dao.getFolderName(id).orEmpty(),
+            contentType = resolvedContentType.storageValue,
+            pinned = pinned
         )
-        backupRepository?.backupNote(id, resolvedTitle, content, updatedAt, contentType)
+        if (existing == null) {
+            dao.insert(entity)
+        } else {
+            dao.update(
+                entity
+            )
+        }
+        backupRepository?.backupNote(id, resolvedTitle, content, updatedAt, resolvedContentType)
     }
 
     suspend fun deleteNote(id: Long) {
         dao.softDelete(id, System.currentTimeMillis())
+        dao.deleteKnowledgeScope(id)
     }
 
     suspend fun deleteFolder(folderName: String, contentType: NoteContentType = NoteContentType.Note) {
@@ -113,6 +130,60 @@ class NoteRepository(
 
     suspend fun getKnowledgeEntries(): List<Note> {
         return dao.getNotesByType(NoteContentType.Knowledge.storageValue).map { it.toDomain() }
+    }
+
+    fun observeKnowledgeEntries(): Flow<List<Note>> {
+        return observeNotes(NoteContentType.Knowledge)
+    }
+
+    suspend fun getNoteKnowledgeScope(noteId: Long): NoteKnowledgeScope? {
+        return dao.getKnowledgeScope(noteId)?.toDomain()
+    }
+
+    fun observeNoteKnowledgeScope(noteId: Long): Flow<NoteKnowledgeScope?> {
+        return dao.observeKnowledgeScope(noteId).map { it?.toDomain() }
+    }
+
+    suspend fun saveNoteKnowledgeScope(noteId: Long, scope: NoteKnowledgeScope?) {
+        if (scope == null || !scope.hasCustomConfiguration) {
+            dao.deleteKnowledgeScope(noteId)
+            return
+        }
+        dao.upsertKnowledgeScope(NoteKnowledgeScopeEntity.fromDomain(noteId, scope))
+    }
+
+    suspend fun getEffectiveKnowledgeEntries(noteId: Long?): List<Note> {
+        val entries = getKnowledgeEntries()
+        if (noteId == null) return entries
+        val scope = getNoteKnowledgeScope(noteId) ?: return entries
+        return entries.filter(scope::allows)
+    }
+
+    fun observeKnowledgeScopeSummary(noteId: Long): Flow<KnowledgeScopeSummary> {
+        return combine(
+            observeKnowledgeEntries(),
+            observeNoteKnowledgeScope(noteId)
+        ) { entries, scope ->
+            val distinctFolders = entries.map { it.folderName }.distinct()
+            if (scope == null) {
+                KnowledgeScopeSummary(
+                    enabledFolderCount = distinctFolders.size,
+                    totalFolderCount = distinctFolders.size,
+                    enabledKnowledgeCount = entries.size,
+                    totalKnowledgeCount = entries.size
+                )
+            } else {
+                val enabledKnowledge = entries.count(scope::allows)
+                KnowledgeScopeSummary(
+                    enabledFolderCount = distinctFolders.count { folder ->
+                        folder in scope.enabledFolderNames && folder !in scope.disabledFolderNames
+                    },
+                    totalFolderCount = distinctFolders.size,
+                    enabledKnowledgeCount = enabledKnowledge,
+                    totalKnowledgeCount = entries.size
+                )
+            }
+        }
     }
 
     private fun NoteEntity.toDomain(): Note = Note(

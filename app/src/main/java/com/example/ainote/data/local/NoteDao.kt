@@ -54,4 +54,16 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes WHERE deleted = 0 AND contentType = :contentType AND title != '' ORDER BY updatedAt DESC")
     suspend fun getNotesByType(contentType: String): List<NoteEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertKnowledgeScope(scope: NoteKnowledgeScopeEntity)
+
+    @Query("SELECT * FROM note_knowledge_scopes WHERE noteId = :noteId LIMIT 1")
+    suspend fun getKnowledgeScope(noteId: Long): NoteKnowledgeScopeEntity?
+
+    @Query("SELECT * FROM note_knowledge_scopes WHERE noteId = :noteId LIMIT 1")
+    fun observeKnowledgeScope(noteId: Long): Flow<NoteKnowledgeScopeEntity?>
+
+    @Query("DELETE FROM note_knowledge_scopes WHERE noteId = :noteId")
+    suspend fun deleteKnowledgeScope(noteId: Long)
 }

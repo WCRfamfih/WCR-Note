@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -86,6 +87,7 @@ fun NoteEditorScreen(
     noteRepository: NoteRepository,
     aiRepository: AiRepository,
     settingsDataStore: SettingsDataStore,
+    onOpenKnowledgeScope: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -267,6 +269,14 @@ fun NoteEditorScreen(
                     if (!isEditingText) {
                         IconButton(onClick = { showShareMenu = true }) {
                             Icon(Icons.Default.Share, contentDescription = "分享")
+                        }
+                    }
+                    if (!isEditingText && state.showKnowledgeButton) {
+                        IconButton(onClick = { onOpenKnowledgeScope(state.noteId) }) {
+                            Icon(
+                                Icons.Default.MenuBook,
+                                contentDescription = "\u77e5\u8bc6\u8bc6\u522b ${state.knowledgeScopeSummary.enabledKnowledgeCount}/${state.knowledgeScopeSummary.totalKnowledgeCount}"
+                            )
                         }
                     }
                     IconButton(onClick = onOpenSettings) {

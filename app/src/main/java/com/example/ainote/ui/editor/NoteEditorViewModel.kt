@@ -12,6 +12,7 @@ import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
 import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionType
+import com.example.ainote.domain.model.KnowledgeScopeSummary
 import com.example.ainote.domain.model.Note
 import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.domain.usecase.BuildCompletionContextUseCase
@@ -38,7 +39,9 @@ data class NoteEditorUiState(
     val manualAi: ManualAiUiState = ManualAiUiState(),
     val canUndo: Boolean = false,
     val canRedo: Boolean = false,
-    val isLoaded: Boolean = false
+    val isLoaded: Boolean = false,
+    val showKnowledgeButton: Boolean = contentType == NoteContentType.Note,
+    val knowledgeScopeSummary: KnowledgeScopeSummary = KnowledgeScopeSummary()
 )
 
 class NoteEditorViewModel(
@@ -74,6 +77,13 @@ class NoteEditorViewModel(
         viewModelScope.launch {
             settingsDataStore.settings.collect { settings ->
                 showMarkdownMarkers = settings.showMarkdownMarkers
+            }
+        }
+        if (contentType == NoteContentType.Note) {
+            viewModelScope.launch {
+                noteRepository.observeKnowledgeScopeSummary(noteId).collect { summary ->
+                    _uiState.update { it.copy(knowledgeScopeSummary = summary) }
+                }
             }
         }
     }
@@ -198,6 +208,7 @@ class NoteEditorViewModel(
             val state = _uiState.value
             val selectedText = state.content.selectedTextOrNull()
             val request = AiActionRequest(
+                noteId = state.noteId,
                 actionType = actionType,
                 noteTitle = state.title.ifBlank { null },
                 content = state.content.text,
@@ -330,7 +341,9 @@ class NoteEditorViewModel(
             title = note.title,
             content = TextFieldValue(note.content, selection = TextRange(note.content.length)),
             wordCount = note.content.length,
-            isLoaded = true
+            isLoaded = true,
+            showKnowledgeButton = note.contentType == NoteContentType.Note,
+            knowledgeScopeSummary = _uiState.value.knowledgeScopeSummary
         )
     }
 
@@ -349,7 +362,8 @@ class NoteEditorViewModel(
             title = state.title,
             content = state.content.text,
             createdAt = state.createdAt,
-            pinned = state.pinned
+            pinned = state.pinned,
+            contentType = state.contentType
         )
     }
 
@@ -377,7 +391,7 @@ class NoteEditorViewModel(
                 useFullNoteContext = settings.useFullNoteContext,
                 beforeLineCount = settings.completionBeforeLineCount,
                 afterLineCount = settings.completionAfterLineCount
-            )
+            ).copy(noteId = state.noteId)
             _uiState.update { it.copy(completion = CompletionUiState(loading = true)) }
             runCatching { requestCompletion(request, force = force) }
                 .onSuccess { result ->

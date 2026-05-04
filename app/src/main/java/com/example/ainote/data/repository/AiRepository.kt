@@ -11,6 +11,7 @@ import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionResult
 import com.example.ainote.domain.model.CompletionRequest
 import com.example.ainote.domain.model.CompletionResult
+import com.example.ainote.domain.model.titleAliases
 import kotlinx.coroutines.flow.first
 
 class AiRepository(
@@ -140,21 +141,28 @@ class AiRepository(
     private suspend fun CompletionRequest.withRelatedKnowledge(settings: UserSettings): CompletionRequest {
         if (!settings.knowledgeBaseEnabled || relatedKnowledge.isNotBlank()) return this
         val context = listOfNotNull(noteTitle, beforeCursor, afterCursor).joinToString("\n")
-        return copy(relatedKnowledge = buildRelatedKnowledge(context))
+        return copy(relatedKnowledge = buildRelatedKnowledge(context, noteId))
     }
 
     private suspend fun AiActionRequest.withRelatedKnowledge(settings: UserSettings): AiActionRequest {
         if (!settings.knowledgeBaseEnabled || relatedKnowledge.isNotBlank()) return this
         val context = listOfNotNull(noteTitle, content, selectedText).joinToString("\n")
-        return copy(relatedKnowledge = buildRelatedKnowledge(context))
+        return copy(relatedKnowledge = buildRelatedKnowledge(context, noteId))
     }
 
-    private suspend fun buildRelatedKnowledge(context: String): String {
+    private suspend fun buildRelatedKnowledge(context: String, noteId: Long?): String {
         val repository = noteRepository ?: return ""
         if (context.isBlank()) return ""
-        val matches = repository.getKnowledgeEntries()
-            .filter { it.title.isNotBlank() && context.contains(it.title) }
-            .sortedBy { context.indexOf(it.title) }
+        val matches = repository.getEffectiveKnowledgeEntries(noteId)
+            .mapNotNull { note ->
+                val firstMatchIndex = note.titleAliases()
+                    .map { alias -> context.indexOf(alias).takeIf { it >= 0 } }
+                    .filterNotNull()
+                    .minOrNull()
+                firstMatchIndex?.let { note to it }
+            }
+            .sortedBy { it.second }
+            .map { it.first }
             .take(MAX_KNOWLEDGE_MATCHES)
         if (matches.isEmpty()) return ""
         AiDebugLogStore.add(

@@ -11,6 +11,7 @@ import androidx.navigation.navArgument
 import com.example.ainote.di.AppContainer
 import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.ui.editor.NoteEditorScreen
+import com.example.ainote.ui.editor.NoteKnowledgeScopeScreen
 import com.example.ainote.ui.notes.NoteListScreen
 import com.example.ainote.ui.settings.AiDebugLogScreen
 import com.example.ainote.ui.settings.AiSettingsScreen
@@ -65,7 +66,22 @@ fun AppNavGraph(container: AppContainer) {
                 noteRepository = container.noteRepository,
                 aiRepository = container.aiRepository,
                 settingsDataStore = container.settingsDataStore,
+                onOpenKnowledgeScope = { scopedNoteId ->
+                    navController.navigate("editor/note/$scopedNoteId/knowledge_scope")
+                },
                 onOpenSettings = { navController.navigate("settings") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = "editor/note/{noteId}/knowledge_scope",
+            arguments = listOf(navArgument("noteId") { type = NavType.LongType })
+        ) { entry ->
+            val noteId = entry.arguments?.getLong("noteId") ?: return@composable
+            NoteKnowledgeScopeScreen(
+                noteId = noteId,
+                noteRepository = container.noteRepository,
+                settingsDataStore = container.settingsDataStore,
                 onBack = { navController.popBackStack() }
             )
         }

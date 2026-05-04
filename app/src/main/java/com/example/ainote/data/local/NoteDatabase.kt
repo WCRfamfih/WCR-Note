@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [NoteEntity::class], version = 3, exportSchema = false)
+@Database(entities = [NoteEntity::class, NoteKnowledgeScopeEntity::class], version = 4, exportSchema = false)
 abstract class NoteDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
 
@@ -24,6 +24,7 @@ abstract class NoteDatabase : RoomDatabase() {
                 )
                     .addMigrations(Migration1To2)
                     .addMigrations(Migration2To3)
+                    .addMigrations(Migration3To4)
                     .build()
                     .also { instance = it }
             }
@@ -38,6 +39,22 @@ abstract class NoteDatabase : RoomDatabase() {
         private val Migration2To3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE notes ADD COLUMN contentType TEXT NOT NULL DEFAULT 'note'")
+            }
+        }
+
+        private val Migration3To4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS note_knowledge_scopes (
+                        noteId INTEGER NOT NULL PRIMARY KEY,
+                        enabledFolderNames TEXT NOT NULL DEFAULT '',
+                        disabledFolderNames TEXT NOT NULL DEFAULT '',
+                        enabledKnowledgeIds TEXT NOT NULL DEFAULT '',
+                        disabledKnowledgeIds TEXT NOT NULL DEFAULT ''
+                    )
+                    """.trimIndent()
+                )
             }
         }
     }
