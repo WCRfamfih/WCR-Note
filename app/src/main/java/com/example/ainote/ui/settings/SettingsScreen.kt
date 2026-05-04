@@ -87,10 +87,10 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text("设置") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -103,49 +103,33 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            SettingsEntry(
-                title = "AI Settings",
-                description = "Providers, presets, auto-completion, and context rules.",
-                onClick = onOpenAiSettings
-            )
+            SettingsEntry("AI 设置", "服务商、预设、自动补全和上下文规则。", onOpenAiSettings)
             Spacer(Modifier.height(12.dp))
-            SettingsEntry(
-                title = "Display Settings",
-                description = "Theme, accent, size, spacing, and font.",
-                onClick = onOpenDisplaySettings
-            )
+            SettingsEntry("显示设置", "主题、强调色、字号、间距和字体。", onOpenDisplaySettings)
             Spacer(Modifier.height(12.dp))
-            SettingsEntry(
-                title = "Knowledge Settings",
-                description = "Knowledge injection and per-request knowledge limits.",
-                onClick = onOpenKnowledgeSettings
-            )
+            SettingsEntry("知识库设置", "知识引用与单次请求知识数量上限。", onOpenKnowledgeSettings)
             Spacer(Modifier.height(12.dp))
-            SettingsEntry(
-                title = "AI Debug Log",
-                description = "Inspect requests, responses, and errors from this session.",
-                onClick = onOpenAiDebugLog
-            )
+            SettingsEntry("AI 调试日志", "查看本次会话中的请求、响应和错误。", onOpenAiDebugLog)
             Spacer(Modifier.height(20.dp))
 
-            Text("Document Backup Directory", style = MaterialTheme.typography.titleSmall)
+            Text("文档备份目录", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = settings.documentDirectoryUri.takeIf { it.isNotBlank() }?.let(::displayDirectoryUri)
-                            ?: "No directory selected. If set, notes will also be written out as files.",
+                            ?: "未选择目录。设置后，笔记会同步导出为文件。",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(12.dp))
                     Row {
                         Button(onClick = { directoryPicker.launch(null) }) {
-                            Text(if (settings.documentDirectoryUri.isBlank()) "Choose Directory" else "Change Directory")
+                            Text(if (settings.documentDirectoryUri.isBlank()) "选择目录" else "更换目录")
                         }
                         if (settings.documentDirectoryUri.isNotBlank()) {
                             Spacer(Modifier.padding(horizontal = 4.dp))
                             Button(onClick = { viewModel.updateDocumentDirectoryUri("") }) {
-                                Text("Clear")
+                                Text("清除")
                             }
                         }
                     }
@@ -157,7 +141,7 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(20.dp))
-            Text("Note Sorting", style = MaterialTheme.typography.titleSmall)
+            Text("笔记排序", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 NoteSortField.entries.forEach { field ->
@@ -200,10 +184,10 @@ fun DisplaySettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Display Settings") },
+                title = { Text("显示设置") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -216,7 +200,7 @@ fun DisplaySettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text("Theme", style = MaterialTheme.typography.titleSmall)
+            Text("颜色主题", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 ThemeMode.entries.forEach { mode ->
@@ -229,7 +213,7 @@ fun DisplaySettingsScreen(
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Text("Accent", style = MaterialTheme.typography.titleSmall)
+            Text("强调色预设", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -246,7 +230,7 @@ fun DisplaySettingsScreen(
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Text("Text Size: ${settings.editorTextSizeSp} sp", style = MaterialTheme.typography.titleSmall)
+            Text("文字大小：${settings.editorTextSizeSp} sp", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.editorTextSizeSp.toFloat(),
                 onValueChange = { viewModel.updateEditorTextSizeSp(it.toInt()) },
@@ -254,7 +238,7 @@ fun DisplaySettingsScreen(
                 steps = 13
             )
             Spacer(Modifier.height(12.dp))
-            Text("Line Spacing: ${settings.editorLineSpacingPercent}%", style = MaterialTheme.typography.titleSmall)
+            Text("行间距：${settings.editorLineSpacingPercent}%", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.editorLineSpacingPercent.toFloat(),
                 onValueChange = { viewModel.updateEditorLineSpacingPercent(it.toInt()) },
@@ -262,7 +246,7 @@ fun DisplaySettingsScreen(
                 steps = 11
             )
             Spacer(Modifier.height(12.dp))
-            Text("Letter Spacing: ${settings.editorLetterSpacingTenthSp / 10f} sp", style = MaterialTheme.typography.titleSmall)
+            Text("字间距：${settings.editorLetterSpacingTenthSp / 10f} sp", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.editorLetterSpacingTenthSp.toFloat(),
                 onValueChange = { viewModel.updateEditorLetterSpacingTenthSp(it.toInt()) },
@@ -270,7 +254,7 @@ fun DisplaySettingsScreen(
                 steps = 11
             )
             Spacer(Modifier.height(20.dp))
-            Text("Font", style = MaterialTheme.typography.titleSmall)
+            Text("字体", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -288,8 +272,8 @@ fun DisplaySettingsScreen(
             }
             Spacer(Modifier.height(12.dp))
             SettingSwitch(
-                title = "Show Markdown Markers",
-                description = "Show raw Markdown markers and disable rendered Markdown while editing.",
+                title = "显示 Markdown 标记",
+                description = "编辑时显示原始 Markdown 标记，并关闭渲染效果。",
                 checked = settings.showMarkdownMarkers,
                 onCheckedChange = viewModel::updateShowMarkdownMarkers
             )
@@ -310,10 +294,10 @@ fun KnowledgeSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Knowledge Settings") },
+                title = { Text("知识库设置") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -326,8 +310,8 @@ fun KnowledgeSettingsScreen(
                 .padding(16.dp)
         ) {
             SettingSwitch(
-                title = "Enable Knowledge Injection",
-                description = "Allow matched knowledge cards to be included in AI requests.",
+                title = "启用知识库引用",
+                description = "允许将识别到的知识卡片一并发送到 AI 请求中。",
                 checked = settings.knowledgeBaseEnabled,
                 onCheckedChange = viewModel::updateKnowledgeBaseEnabled
             )
@@ -340,9 +324,9 @@ fun KnowledgeSettingsScreen(
                     digits.toIntOrNull()?.let(viewModel::updateKnowledgeSendLimit)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Per-request Knowledge Limit") },
+                label = { Text("单次发送知识上限") },
                 supportingText = {
-                    Text("If recognized knowledge exceeds this number, the editor will ask before sending all matches.")
+                    Text("如果识别到的知识超过这个数量，编辑器会先弹窗确认是否发送全部。")
                 },
                 singleLine = true
             )
@@ -385,10 +369,10 @@ fun AiSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI Settings") },
+                title = { Text("AI 设置") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -401,7 +385,7 @@ fun AiSettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text("Service Presets", style = MaterialTheme.typography.titleSmall)
+            Text("服务预设", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -426,7 +410,7 @@ fun AiSettingsScreen(
                         viewModel.addAiServicePreset(
                             AiServicePreset(
                                 id = id,
-                                label = "New Preset",
+                                label = "新预设",
                                 provider = "OpenAI",
                                 baseUrl = "https://api.openai.com/v1/chat/completions",
                                 model = "gpt-4o-mini"
@@ -435,7 +419,7 @@ fun AiSettingsScreen(
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Add Preset")
+                    Text("新增预设")
                 }
                 Spacer(Modifier.padding(4.dp))
                 Button(
@@ -443,11 +427,11 @@ fun AiSettingsScreen(
                     enabled = presets.size > 1,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Delete Current")
+                    Text("删除当前")
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text("Provider Templates", style = MaterialTheme.typography.titleSmall)
+            Text("服务商模板", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -478,7 +462,7 @@ fun AiSettingsScreen(
                 value = selectedPreset.label,
                 onValueChange = { value -> updateSelectedPreset { copy(label = value) } },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Preset Name") },
+                label = { Text("预设名称") },
                 singleLine = true
             )
             Spacer(Modifier.height(12.dp))
@@ -487,7 +471,7 @@ fun AiSettingsScreen(
                 onValueChange = { value -> updateSelectedPreset { copy(provider = value) } },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API Provider") },
-                supportingText = { Text("Use Fake for local simulation. Any other provider uses an OpenAI-compatible HTTP API.") },
+                supportingText = { Text("填写 Fake 使用本地模拟；其他 Provider 走 OpenAI 兼容接口。") },
                 singleLine = true
             )
             Spacer(Modifier.height(12.dp))
@@ -517,7 +501,7 @@ fun AiSettingsScreen(
                     IconButton(onClick = { showApiKey = !showApiKey }) {
                         Icon(
                             imageVector = if (showApiKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (showApiKey) "Hide API Key" else "Show API Key"
+                            contentDescription = if (showApiKey) "隐藏 API Key" else "显示 API Key"
                         )
                     }
                 },
@@ -525,82 +509,67 @@ fun AiSettingsScreen(
             )
             Spacer(Modifier.height(12.dp))
             Button(onClick = { viewModel.testConnection(selectedPreset.id) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Test API Connection")
+                Text("测试 API 连接")
             }
             testStatus?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(20.dp))
-            Text("Usage Binding", style = MaterialTheme.typography.titleSmall)
+            Text("用途绑定", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            PresetUsageSelector(
-                title = "Auto-completion",
-                presets = presets,
-                selectedId = settings.autoCompletionPresetId,
-                onSelect = viewModel::updateAutoCompletionPresetId
-            )
-            PresetUsageSelector(
-                title = "Manual completion",
-                presets = presets,
-                selectedId = settings.manualCompletionPresetId,
-                onSelect = viewModel::updateManualCompletionPresetId
-            )
-            PresetUsageSelector(
-                title = "AI tools",
-                presets = presets,
-                selectedId = settings.aiToolPresetId,
-                onSelect = viewModel::updateAiToolPresetId
-            )
+            PresetUsageSelector("自动补全", presets, settings.autoCompletionPresetId, viewModel::updateAutoCompletionPresetId)
+            PresetUsageSelector("手动补全", presets, settings.manualCompletionPresetId, viewModel::updateManualCompletionPresetId)
+            PresetUsageSelector("AI 工具", presets, settings.aiToolPresetId, viewModel::updateAiToolPresetId)
             Spacer(Modifier.height(20.dp))
             SettingSwitch(
-                title = "Auto-completion",
-                description = "Show one suggested continuation after typing stops.",
+                title = "自动补全",
+                description = "停止输入后显示一条建议续写。",
                 checked = settings.autoCompletionEnabled,
                 onCheckedChange = viewModel::updateAutoCompletionEnabled
             )
             if (settings.autoCompletionEnabled) {
                 SettingSwitch(
-                    title = "Prefer Chinese text for auto-completion",
-                    description = "Only request auto-completion when the text before the cursor contains Chinese.",
+                    title = "优先中文自动补全",
+                    description = "仅在光标前文本包含中文时请求自动补全。",
                     checked = settings.preferChineseAutoCompletion,
                     onCheckedChange = viewModel::updatePreferChineseAutoCompletion
                 )
                 SettingSwitch(
-                    title = "Skip blank lines",
-                    description = "Do not auto-complete when the current line is blank.",
+                    title = "跳过空白行",
+                    description = "当前行为空时不触发自动补全。",
                     checked = settings.skipBlankLineAutoCompletion,
                     onCheckedChange = viewModel::updateSkipBlankLineAutoCompletion
                 )
                 SettingSwitch(
-                    title = "Only after content changes",
-                    description = "Moving the cursor alone will not trigger auto-completion.",
+                    title = "仅内容变化时触发",
+                    description = "仅移动光标时不触发自动补全。",
                     checked = settings.autoCompleteOnlyOnContentChange,
                     onCheckedChange = viewModel::updateAutoCompleteOnlyOnContentChange
                 )
             }
             SettingSwitch(
-                title = "Show AI error toasts",
-                description = "Show a snackbar when completion fails or returns nothing useful.",
+                title = "显示 AI 错误提示",
+                description = "补全失败或返回无效内容时显示提示。",
                 checked = settings.showCompletionErrorToast,
                 onCheckedChange = viewModel::updateShowCompletionErrorToast
             )
             SettingSwitch(
-                title = "Allow full-note context",
-                description = "If off, only a bounded window around the cursor is sent.",
+                title = "允许整篇上下文",
+                description = "关闭时仅发送光标附近的上下文窗口。",
                 checked = settings.useFullNoteContext,
                 onCheckedChange = viewModel::updateUseFullNoteContext
             )
             if (!settings.useFullNoteContext) {
                 Spacer(Modifier.height(12.dp))
-                Text("Lines before cursor: ${settings.completionBeforeLineCount}", style = MaterialTheme.typography.titleSmall)
+                Text("光标前行数：${settings.completionBeforeLineCount}", style = MaterialTheme.typography.titleSmall)
                 Slider(
                     value = settings.completionBeforeLineCount.toFloat(),
                     onValueChange = { viewModel.updateCompletionBeforeLineCount(it.toInt()) },
                     valueRange = 0f..20f,
                     steps = 19
                 )
-                Text("Lines after cursor: ${settings.completionAfterLineCount}", style = MaterialTheme.typography.titleSmall)
+                Text("光标后行数：${settings.completionAfterLineCount}", style = MaterialTheme.typography.titleSmall)
                 Slider(
                     value = settings.completionAfterLineCount.toFloat(),
                     onValueChange = { viewModel.updateCompletionAfterLineCount(it.toInt()) },
@@ -609,14 +578,14 @@ fun AiSettingsScreen(
                 )
             }
             Spacer(Modifier.height(20.dp))
-            Text("Completion delay: ${settings.completionDelayMs} ms", style = MaterialTheme.typography.titleSmall)
+            Text("补全延迟：${settings.completionDelayMs} ms", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.completionDelayMs.toFloat(),
                 onValueChange = { viewModel.updateCompletionDelayMs(it.toLong()) },
                 valueRange = 300f..1500f,
                 steps = 11
             )
-            Text("Max completion length: ${settings.maxCompletionLength} chars", style = MaterialTheme.typography.titleSmall)
+            Text("最大补全长度：${settings.maxCompletionLength} 字", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.maxCompletionLength.toFloat(),
                 onValueChange = { viewModel.updateMaxCompletionLength(it.toInt()) },
@@ -626,7 +595,7 @@ fun AiSettingsScreen(
             Spacer(Modifier.height(20.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Privacy note: when using a real API, the app sends nearby text or the selected text to the chosen provider. API keys are stored on the local device.",
+                    text = "隐私说明：使用真实 API 时，应用会将附近文本或选中文本发送给当前服务商，API Key 仅保存在本地设备。",
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -643,15 +612,15 @@ fun AiDebugLogScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI Debug Log") },
+                title = { Text("AI 调试日志") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     Button(onClick = AiDebugLogStore::clear) {
-                        Text("Clear")
+                        Text("清空")
                     }
                 }
             )
@@ -665,7 +634,7 @@ fun AiDebugLogScreen(onBack: () -> Unit) {
                 .padding(16.dp)
         ) {
             if (entries.isEmpty()) {
-                Text("No logs yet. This screen only shows AI calls from the current app session.")
+                Text("暂无日志。本页仅显示当前应用会话内的 AI 调用记录。")
             } else {
                 SelectionContainer {
                     Column {

@@ -152,18 +152,18 @@ fun NoteEditorScreen(
     if (showShareMenu) {
         ModalBottomSheet(onDismissRequest = { showShareMenu = false }) {
             ListItem(
-                headlineContent = { Text("Copy plain text") },
-                supportingContent = { Text("Copy without Markdown markers.") },
+                headlineContent = { Text("复制纯文本") },
+                supportingContent = { Text("去除 Markdown 标记后复制。") },
                 leadingContent = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
                 modifier = Modifier.clickable {
                     clipboardManager.setText(AnnotatedString(stripMarkdownMarkers(state.content.text)))
                     showShareMenu = false
-                    Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
                 }
             )
             ListItem(
-                headlineContent = { Text("Export image") },
-                supportingContent = { Text("Create a preview image, then save or share it.") },
+                headlineContent = { Text("导出图片") },
+                supportingContent = { Text("生成预览图后再保存或分享。") },
                 leadingContent = { Icon(Icons.Default.Image, contentDescription = null) },
                 modifier = Modifier.clickable {
                     showShareMenu = false
@@ -182,7 +182,7 @@ fun NoteEditorScreen(
                             .onFailure { error ->
                                 Toast.makeText(
                                     context,
-                                    "Image export failed: ${error.message ?: "Unknown error"}",
+                                    "图片导出失败：${error.message ?: "未知错误"}",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -196,18 +196,18 @@ fun NoteEditorScreen(
     state.knowledgeOverflowPrompt?.let { prompt ->
         AlertDialog(
             onDismissRequest = viewModel::dismissKnowledgeOverflow,
-            title = { Text("Knowledge send confirmation") },
+            title = { Text("知识发送确认") },
             text = {
-                Text("Recognized knowledge exceeds the threshold (${prompt.limit}). Send all ${prompt.matchCount} matches?")
+                Text("识别到的知识超出阈值（${prompt.limit}），当前共识别到 ${prompt.matchCount} 条，是否全部发送？")
             },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmKnowledgeOverflow) {
-                    Text("Send all")
+                    Text("全部发送")
                 }
             },
             dismissButton = {
                 TextButton(onClick = viewModel::dismissKnowledgeOverflow) {
-                    Text("Cancel")
+                    Text("取消")
                 }
             }
         )
@@ -221,7 +221,7 @@ fun NoteEditorScreen(
             previewBitmap?.let { bitmap ->
                 Image(
                     bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "Preview image",
+                    contentDescription = "图片预览",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(360.dp)
@@ -229,7 +229,7 @@ fun NoteEditorScreen(
                 )
             }
             ListItem(
-                headlineContent = { Text("Save to gallery") },
+                headlineContent = { Text("保存到相册") },
                 leadingContent = { Icon(Icons.Default.Image, contentDescription = null) },
                 modifier = Modifier.clickable {
                     coroutineScope.launch {
@@ -237,15 +237,15 @@ fun NoteEditorScreen(
                             NoteImageExporter.saveImageToGallery(context.applicationContext, image.uri, image.fileName)
                         }
                         val message = result.fold(
-                            onSuccess = { "Saved: $it" },
-                            onFailure = { "Save failed: ${it.message ?: "Unknown error"}" }
+                            onSuccess = { "已保存：$it" },
+                            onFailure = { "保存失败：${it.message ?: "未知错误"}" }
                         )
                         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                     }
                 }
             )
             ListItem(
-                headlineContent = { Text("Share now") },
+                headlineContent = { Text("立即分享") },
                 leadingContent = { Icon(Icons.Default.Share, contentDescription = null) },
                 modifier = Modifier.clickable {
                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -253,7 +253,7 @@ fun NoteEditorScreen(
                         putExtra(Intent.EXTRA_STREAM, image.uri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share image"))
+                    context.startActivity(Intent.createChooser(shareIntent, "分享图片"))
                 }
             )
             Spacer(Modifier.height(16.dp))
@@ -268,7 +268,7 @@ fun NoteEditorScreen(
         }
         val result = snackbarHostState.showSnackbar(
             message = message,
-            actionLabel = "Retry",
+            actionLabel = "重试",
             withDismissAction = true
         )
         if (result == SnackbarResult.ActionPerformed) {
@@ -286,41 +286,41 @@ fun NoteEditorScreen(
                     title = {},
                     navigationIcon = {
                         IconButton(onClick = { viewModel.saveNow(onBack) }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                         }
                     },
                     actions = {
                         if (isEditingText) {
                             IconButton(onClick = viewModel::undo, enabled = state.canUndo) {
-                                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo")
+                                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销")
                             }
                             IconButton(onClick = viewModel::redo, enabled = state.canRedo) {
-                                Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo")
+                                Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做")
                             }
                         }
                         IconButton(onClick = { showAiMenu = true }) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = "AI actions")
+                            Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作")
                         }
                         if (!isEditingText) {
                             IconButton(onClick = { showShareMenu = true }) {
-                                Icon(Icons.Default.Share, contentDescription = "Share")
+                                Icon(Icons.Default.Share, contentDescription = "分享")
                             }
                         }
                         if (!isEditingText && state.showKnowledgeButton) {
                             IconButton(onClick = { onOpenKnowledgeScope(state.noteId) }) {
                                 Icon(
                                     Icons.Default.MenuBook,
-                                    contentDescription = "Knowledge scope ${state.knowledgeScopeSummary.enabledKnowledgeCount}/${state.knowledgeScopeSummary.totalKnowledgeCount}"
+                                    contentDescription = "知识识别 ${state.knowledgeScopeSummary.enabledKnowledgeCount}/${state.knowledgeScopeSummary.totalKnowledgeCount}"
                                 )
                             }
                         }
                         if (isKnowledge) {
                             TextButton(onClick = { viewModel.toggleGlobalKnowledge(!state.isGlobalKnowledge) }) {
-                                Text(if (state.isGlobalKnowledge) "Global on" else "Global off")
+                                Text(if (state.isGlobalKnowledge) "全局开" else "全局关")
                             }
                         }
                         IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            Icon(Icons.Default.Settings, contentDescription = "设置")
                         }
                     }
                 )
@@ -333,9 +333,9 @@ fun NoteEditorScreen(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = if (canShowGhostText) {
-                        "${state.wordCount} chars, tap the ghost text to accept"
+                        "${state.wordCount} 字，点击灰字接受补全"
                     } else {
-                        "${state.wordCount} chars, auto-saving"
+                        "${state.wordCount} 字，自动保存"
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -366,7 +366,7 @@ fun NoteEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
                     Text(
-                        text = "Title",
+                        text = "标题",
                         style = MaterialTheme.typography.headlineSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 },
@@ -419,9 +419,9 @@ fun NoteEditorScreen(
             }
             state.manualAi.result?.let { result ->
                 AiActionResultCard(
-                    actionLabel = state.manualAi.actionLabel ?: "Result",
+                    actionLabel = state.manualAi.actionLabel ?: "结果",
                     text = result,
-                    primaryActionLabel = if (state.manualAi.replaceSelection) "Replace selection" else "Insert",
+                    primaryActionLabel = if (state.manualAi.replaceSelection) "替换选区" else "插入",
                     onAccept = viewModel::acceptManualAiResult,
                     onCopy = {
                         clipboardManager.setText(AnnotatedString(result))
@@ -432,7 +432,7 @@ fun NoteEditorScreen(
             }
             state.manualAi.errorMessage?.let { message ->
                 AiStatusCard(
-                    title = "AI ${state.manualAi.actionLabel ?: "Action"}",
+                    title = "AI ${state.manualAi.actionLabel ?: "操作"}",
                     message = message,
                     isError = true,
                     onRetry = viewModel::retryManualAction,
@@ -441,7 +441,7 @@ fun NoteEditorScreen(
             }
             state.manualAi.statusMessage?.let { message ->
                 AiStatusCard(
-                    title = "AI ${state.manualAi.actionLabel ?: "Action"}",
+                    title = "AI ${state.manualAi.actionLabel ?: "操作"}",
                     message = message,
                     isError = false,
                     onDismiss = viewModel::dismissManualAiStatus
