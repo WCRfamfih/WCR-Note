@@ -12,6 +12,7 @@ import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
 import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionType
+import com.example.ainote.domain.model.CompletionRequest
 import com.example.ainote.domain.model.KnowledgeExtractionLaunchArgs
 import com.example.ainote.domain.model.KnowledgeScopeSummary
 import com.example.ainote.domain.model.Note
@@ -19,9 +20,10 @@ import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.domain.usecase.BuildCompletionContextUseCase
 import com.example.ainote.domain.usecase.RequestCompletionUseCase
 import com.example.ainote.ui.components.normalizeMarkdownMarkers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -42,7 +44,14 @@ data class NoteEditorUiState(
     val canRedo: Boolean = false,
     val isLoaded: Boolean = false,
     val showKnowledgeButton: Boolean = contentType == NoteContentType.Note,
-    val knowledgeScopeSummary: KnowledgeScopeSummary = KnowledgeScopeSummary()
+    val knowledgeScopeSummary: KnowledgeScopeSummary = KnowledgeScopeSummary(),
+    val isGlobalKnowledge: Boolean = false,
+    val knowledgeOverflowPrompt: KnowledgeOverflowPrompt? = null
+)
+
+data class KnowledgeOverflowPrompt(
+    val matchCount: Int,
+    val limit: Int
 )
 
 class NoteEditorViewModel(
@@ -65,6 +74,7 @@ class NoteEditorViewModel(
     private var completionJob: Job? = null
     private var initialized = false
     private var showMarkdownMarkers = false
+    private var pendingKnowledgeAction: PendingKnowledgeAction? = null
 
     init {
         viewModelScope.launch {
@@ -94,12 +104,16 @@ class NoteEditorViewModel(
         scheduleSave()
     }
 
+    fun toggleGlobalKnowledge(value: Boolean) {
+        if (_uiState.value.contentType != NoteContentType.Knowledge) return
+        _uiState.update { it.copy(isGlobalKnowledge = value) }
+        scheduleSave()
+    }
+
     fun updateContent(value: TextFieldValue) {
         val normalizedValue = if (showMarkdownMarkers) value else value.normalizeMarkdownSelection()
         val current = _uiState.value.content
         val contentChanged = current.text != normalizedValue.text
-        
-        // Record history if content actually changed
         if (current != normalizedValue) {
             undoStack.addLast(current)
             if (undoStack.size > 100) {
@@ -107,7 +121,6 @@ class NoteEditorViewModel(
             }
             redoStack.clear()
         }
-        
         _uiState.update {
             it.copy(
                 content = normalizedValue,
@@ -223,9 +236,14 @@ class NoteEditorViewModel(
                     AiActionType.Todo -> 180
                     AiActionType.Summarize -> 160
                     AiActionType.GenerateTitle -> 24
-                }.coerceAtMost(settings.maxCompletionLength.coerceAtLeast(24) * 4)
+                }.coerceAtMost(settings.maxCompletionLength.coerceAtLeast(24) * 4),
+                disableKnowledgeInjection = actionType == AiActionType.ExtractToKnowledge
             )
-            executeManualAction(request, selectedText)
+            val context = selectedText ?: state.content.text
+            val resolvedRequest = prepareManualActionRequest(request, context)
+            if (resolvedRequest != null) {
+                executeManualAction(resolvedRequest, selectedText)
+            }
         }
     }
 
@@ -249,11 +267,43 @@ class NoteEditorViewModel(
         val request = _uiState.value.manualAi.retryRequest ?: return
         completionJob?.cancel()
         viewModelScope.launch {
-            executeManualAction(
-                request = request,
-                selectedText = request.selectedText
-            )
+            val context = request.selectedText ?: request.content
+            val resolvedRequest = prepareManualActionRequest(request, context)
+            if (resolvedRequest != null) {
+                executeManualAction(resolvedRequest, resolvedRequest.selectedText)
+            }
         }
+    }
+
+    fun confirmKnowledgeOverflow() {
+        val pending = pendingKnowledgeAction ?: return
+        pendingKnowledgeAction = null
+        _uiState.update { it.copy(knowledgeOverflowPrompt = null) }
+        viewModelScope.launch {
+            when (pending) {
+                is PendingKnowledgeAction.Completion -> {
+                    val resolvedRequest = applyKnowledgeContext(
+                        request = pending.request,
+                        context = pending.context,
+                        includeAllMatches = true
+                    )
+                    executeCompletionRequest(resolvedRequest, pending.force)
+                }
+                is PendingKnowledgeAction.Manual -> {
+                    val resolvedRequest = applyKnowledgeContext(
+                        request = pending.request,
+                        context = pending.context,
+                        includeAllMatches = true
+                    )
+                    executeManualAction(resolvedRequest, pending.selectedText)
+                }
+            }
+        }
+    }
+
+    fun dismissKnowledgeOverflow() {
+        pendingKnowledgeAction = null
+        _uiState.update { it.copy(knowledgeOverflowPrompt = null) }
     }
 
     private suspend fun executeManualAction(
@@ -294,7 +344,7 @@ class NoteEditorViewModel(
                     state.copy(
                         manualAi = ManualAiUiState(
                             actionLabel = actionType.label,
-                            errorMessage = "\u0041\u0049 \u64cd\u4f5c\u5931\u8d25\uff1a${formatErrorMessage(error)}",
+                            errorMessage = "AI 操作失败：${formatErrorMessage(error)}",
                             retryRequest = request
                         )
                     )
@@ -331,7 +381,7 @@ class NoteEditorViewModel(
         _uiState.update { state ->
             state.copy(
                 manualAi = state.manualAi.copy(
-                    statusMessage = "\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f\u3002",
+                    statusMessage = "已复制到剪贴板。",
                     errorMessage = null
                 )
             )
@@ -361,7 +411,8 @@ class NoteEditorViewModel(
             wordCount = note.content.length,
             isLoaded = true,
             showKnowledgeButton = note.contentType == NoteContentType.Note,
-            knowledgeScopeSummary = _uiState.value.knowledgeScopeSummary
+            knowledgeScopeSummary = _uiState.value.knowledgeScopeSummary,
+            isGlobalKnowledge = note.isGlobalKnowledge
         )
     }
 
@@ -381,7 +432,8 @@ class NoteEditorViewModel(
             content = state.content.text,
             createdAt = state.createdAt,
             pinned = state.pinned,
-            contentType = state.contentType
+            contentType = state.contentType,
+            isGlobalKnowledge = state.isGlobalKnowledge
         )
     }
 
@@ -393,7 +445,7 @@ class NoteEditorViewModel(
                 if (force) {
                     AiDebugLogStore.add("Completion skipped", "Manual completion skipped because the cursor is not after existing body text.")
                     _uiState.update {
-                        it.copy(completion = CompletionUiState(errorMessage = "请把光标放在正文已有内容之后再补全。"))
+                        it.copy(completion = CompletionUiState(errorMessage = "请把光标放在已有正文之后再补全。"))
                     }
                 }
                 return@launch
@@ -410,33 +462,114 @@ class NoteEditorViewModel(
                 beforeLineCount = settings.completionBeforeLineCount,
                 afterLineCount = settings.completionAfterLineCount
             ).copy(noteId = state.noteId)
-            _uiState.update { it.copy(completion = CompletionUiState(loading = true)) }
-            runCatching { requestCompletion(request, force = force) }
-                .onSuccess { result ->
-                    val suggestion = result.text.takeIf(String::isNotBlank)
-                    _uiState.update {
-                        it.copy(
-                            completion = if (suggestion == null) {
-                                AiDebugLogStore.add("Completion empty", "AI returned no usable completion text after filtering.")
-                                CompletionUiState(errorMessage = "AI 没有返回可用的补全文字，请重试。")
-                            } else {
-                                CompletionUiState(suggestion = suggestion)
-                            }
-                        )
-                    }
-                }
-                .onFailure { error ->
-                    if (error is CancellationException) {
-                        AiDebugLogStore.add("Completion cancelled", error.message ?: "Coroutine was cancelled.")
-                        _uiState.update { it.copy(completion = CompletionUiState()) }
-                    } else {
-                        AiDebugLogStore.add("Completion error", formatErrorMessage(error))
-                        _uiState.update {
-                            it.copy(completion = CompletionUiState(errorMessage = "AI 补全失败：${formatErrorMessage(error)}"))
-                        }
-                    }
-                }
+            val context = request.beforeCursor + request.afterCursor
+            val resolvedRequest = prepareCompletionRequest(request, context, force) ?: return@launch
+            executeCompletionRequest(resolvedRequest, force)
         }
+    }
+
+    private suspend fun executeCompletionRequest(request: CompletionRequest, force: Boolean) {
+        _uiState.update { it.copy(completion = CompletionUiState(loading = true)) }
+        runCatching { requestCompletion(request, force = force) }
+            .onSuccess { result ->
+                val suggestion = result.text.takeIf(String::isNotBlank)
+                _uiState.update {
+                    it.copy(
+                        completion = if (suggestion == null) {
+                            AiDebugLogStore.add("Completion empty", "AI returned no usable completion text after filtering.")
+                            CompletionUiState(errorMessage = "AI 没有返回可用的补全文字，请重试。")
+                        } else {
+                            CompletionUiState(suggestion = suggestion)
+                        }
+                    )
+                }
+            }
+            .onFailure { error ->
+                if (error is CancellationException) {
+                    AiDebugLogStore.add("Completion cancelled", error.message ?: "Coroutine was cancelled.")
+                    _uiState.update { it.copy(completion = CompletionUiState()) }
+                } else {
+                    AiDebugLogStore.add("Completion error", formatErrorMessage(error))
+                    _uiState.update {
+                        it.copy(completion = CompletionUiState(errorMessage = "AI 补全失败：${formatErrorMessage(error)}"))
+                    }
+                }
+            }
+    }
+
+    private suspend fun prepareCompletionRequest(
+        request: CompletionRequest,
+        context: String,
+        force: Boolean
+    ): CompletionRequest? {
+        val resolution = aiRepository.resolveKnowledgeContext(context, request.noteId)
+        if (resolution.overflow) {
+            pendingKnowledgeAction = PendingKnowledgeAction.Completion(request, context, force)
+            _uiState.update {
+                it.copy(
+                    completion = CompletionUiState(),
+                    knowledgeOverflowPrompt = KnowledgeOverflowPrompt(
+                        matchCount = resolution.matches.size,
+                        limit = resolution.limit
+                    )
+                )
+            }
+            return null
+        }
+        return request.copy(
+            relatedKnowledge = resolution.relatedKnowledge,
+            disableKnowledgeInjection = resolution.relatedKnowledge.isBlank()
+        )
+    }
+
+    private suspend fun prepareManualActionRequest(
+        request: AiActionRequest,
+        context: String
+    ): AiActionRequest? {
+        if (request.disableKnowledgeInjection) return request
+        val resolution = aiRepository.resolveKnowledgeContext(context, request.noteId)
+        if (resolution.overflow) {
+            pendingKnowledgeAction = PendingKnowledgeAction.Manual(request, context, request.selectedText)
+            _uiState.update {
+                it.copy(
+                    manualAi = ManualAiUiState(actionLabel = request.actionType.label),
+                    knowledgeOverflowPrompt = KnowledgeOverflowPrompt(
+                        matchCount = resolution.matches.size,
+                        limit = resolution.limit
+                    )
+                )
+            }
+            return null
+        }
+        return request.copy(
+            relatedKnowledge = resolution.relatedKnowledge,
+            disableKnowledgeInjection = resolution.relatedKnowledge.isBlank()
+        )
+    }
+
+    private suspend fun applyKnowledgeContext(
+        request: CompletionRequest,
+        context: String,
+        includeAllMatches: Boolean
+    ): CompletionRequest {
+        val resolution = aiRepository.resolveKnowledgeContext(context, request.noteId, includeAllMatches)
+        return request.copy(
+            relatedKnowledge = resolution.relatedKnowledge,
+            disableKnowledgeInjection = resolution.relatedKnowledge.isBlank()
+        )
+    }
+
+    private suspend fun applyKnowledgeContext(
+        request: AiActionRequest,
+        context: String,
+        includeAllMatches: Boolean
+    ): AiActionRequest {
+        if (request.disableKnowledgeInjection) return request
+        val resolution = aiRepository.resolveKnowledgeContext(context, request.noteId, includeAllMatches)
+        return request.copy(
+            relatedKnowledge = resolution.relatedKnowledge,
+            disableKnowledgeInjection = resolution.relatedKnowledge.isBlank()
+        )
     }
 
     private fun canRequestCompletion(settings: UserSettings, force: Boolean, contentChanged: Boolean): Boolean {
@@ -484,11 +617,7 @@ class NoteEditorViewModel(
         if (text.isEmpty()) return 0 to 0
         val start = if (value.selection.collapsed) value.selection.start else value.selection.min
         val end = if (value.selection.collapsed) value.selection.start else value.selection.max
-        val lineStart = if (start == 0) {
-            0
-        } else {
-            text.lastIndexOf('\n', start - 1).let { if (it == -1) 0 else it + 1 }
-        }
+        val lineStart = if (start == 0) 0 else text.lastIndexOf('\n', start - 1).let { if (it == -1) 0 else it + 1 }
         val searchFrom = if (!value.selection.collapsed && end > start && text.getOrNull(end - 1) == '\n') {
             (end - 1).coerceAtLeast(lineStart)
         } else {
@@ -550,10 +679,7 @@ class NoteEditorViewModel(
         val selection = if (unwrap) {
             TextRange(range.first, range.first + transformed.length)
         } else {
-            TextRange(
-                range.first + prefix.length,
-                range.first + transformed.length - suffix.length
-            )
+            TextRange(range.first + prefix.length, range.first + transformed.length - suffix.length)
         }
         return value.copy(text = nextText, selection = selection)
     }
@@ -681,8 +807,22 @@ class NoteEditorViewModel(
         )
     }
 
-    private fun formatErrorMessage(it: Throwable): String {
-        return it.message?.takeIf(String::isNotBlank) ?: "\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
+    private fun formatErrorMessage(error: Throwable): String {
+        return error.message?.takeIf(String::isNotBlank) ?: "请稍后重试。"
+    }
+
+    private sealed interface PendingKnowledgeAction {
+        data class Completion(
+            val request: CompletionRequest,
+            val context: String,
+            val force: Boolean
+        ) : PendingKnowledgeAction
+
+        data class Manual(
+            val request: AiActionRequest,
+            val context: String,
+            val selectedText: String?
+        ) : PendingKnowledgeAction
     }
 
     class Factory(

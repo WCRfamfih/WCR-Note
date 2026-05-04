@@ -8,6 +8,7 @@ import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.AiServicePreset
+import com.example.ainote.data.settings.EditorFontPreset
 import com.example.ainote.data.settings.NoteSortDirection
 import com.example.ainote.data.settings.NoteSortField
 import com.example.ainote.data.settings.SettingsDataStore
@@ -37,10 +38,12 @@ class SettingsViewModel(
     fun updateApiKey(value: String) = launch { dataStore.updateApiKey(value) }
     fun updateApiBaseUrl(value: String) = launch { dataStore.updateApiBaseUrl(value) }
     fun updateApiModel(value: String) = launch { dataStore.updateApiModel(value) }
+
     fun applyProviderPreset(preset: AiProviderPreset) = launch {
         dataStore.applyProviderPreset(preset)
         _testStatus.value = null
     }
+
     fun updateAiServicePreset(preset: AiServicePreset) = launch {
         val current = settings.value.aiServicePresets
         dataStore.updateAiServicePresets(current.map { if (it.id == preset.id) preset else it })
@@ -75,28 +78,33 @@ class SettingsViewModel(
     fun updateThemeMode(value: ThemeMode) = launch { dataStore.updateThemeMode(value) }
     fun updateAccentColorPreset(value: AccentColorPreset) = launch { dataStore.updateAccentColorPreset(value) }
     fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
+    fun updateEditorLineSpacingPercent(value: Int) = launch { dataStore.updateEditorLineSpacingPercent(value) }
+    fun updateEditorLetterSpacingTenthSp(value: Int) = launch { dataStore.updateEditorLetterSpacingTenthSp(value) }
+    fun updateEditorFontPreset(value: EditorFontPreset) = launch { dataStore.updateEditorFontPreset(value) }
     fun updateShowMarkdownMarkers(value: Boolean) = launch { dataStore.updateShowMarkdownMarkers(value) }
     fun updateShowCompletionErrorToast(value: Boolean) = launch { dataStore.updateShowCompletionErrorToast(value) }
     fun updateKnowledgeBaseEnabled(value: Boolean) = launch { dataStore.updateKnowledgeBaseEnabled(value) }
+    fun updateKnowledgeSendLimit(value: Int) = launch { dataStore.updateKnowledgeSendLimit(value) }
+    fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
+    fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }
+
     fun updateDocumentDirectoryUri(value: String) = launch {
         dataStore.updateDocumentDirectoryUri(value)
         if (value.isBlank()) {
             _documentStatus.value = null
         } else {
             val imported = noteRepository?.importBackupsFromDirectory(value) ?: 0
-            _documentStatus.value = "已选择目录，导入 $imported 篇备份笔记。"
+            _documentStatus.value = "已选择目录，并导入 $imported 篇备份笔记。"
         }
     }
-    fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
-    fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }
 
     fun testConnection(presetId: String? = null) {
-        _testStatus.value = "\u6b63\u5728\u6d4b\u8bd5\u8fde\u63a5..."
+        _testStatus.value = "正在测试连接..."
         viewModelScope.launch {
             val result = aiRepository.testConnection(presetId)
             _testStatus.value = result.fold(
-                onSuccess = { "\u8fde\u63a5\u6210\u529f\uff1a$it" },
-                onFailure = { "\u8fde\u63a5\u5931\u8d25\uff1a${it.message ?: "\u672a\u77e5\u9519\u8bef"}" }
+                onSuccess = { "连接成功：$it" },
+                onFailure = { "连接失败：${it.message ?: "未知错误"}" }
             )
         }
     }

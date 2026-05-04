@@ -17,6 +17,20 @@ enum class AiPresetUsage {
     AiTool
 }
 
+enum class EditorFontPreset(val label: String) {
+    System("\u8ddf\u968f\u7cfb\u7edf"),
+    Sans("\u65e0\u886c\u7ebf"),
+    Serif("\u886c\u7ebf"),
+    Monospace("\u7b49\u5bbd"),
+    Cursive("\u624b\u5199");
+
+    companion object {
+        fun from(raw: String?): EditorFontPreset {
+            return entries.firstOrNull { it.name == raw } ?: System
+        }
+    }
+}
+
 data class UserSettings(
     val apiProvider: String = "Fake",
     val apiKey: String = "",
@@ -38,9 +52,13 @@ data class UserSettings(
     val themeMode: ThemeMode = ThemeMode.System,
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Violet,
     val editorTextSizeSp: Int = 18,
+    val editorLineSpacingPercent: Int = 140,
+    val editorLetterSpacingTenthSp: Int = 0,
+    val editorFontPreset: EditorFontPreset = EditorFontPreset.System,
     val showMarkdownMarkers: Boolean = false,
     val showCompletionErrorToast: Boolean = true,
     val knowledgeBaseEnabled: Boolean = false,
+    val knowledgeSendLimit: Int = 5,
     val documentDirectoryUri: String = "",
     val noteSortField: NoteSortField = NoteSortField.Time,
     val noteSortDirection: NoteSortDirection = NoteSortDirection.Descending

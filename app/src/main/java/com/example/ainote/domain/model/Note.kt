@@ -8,6 +8,7 @@ data class Note(
     val updatedAt: Long,
     val folderName: String = "",
     val contentType: NoteContentType = NoteContentType.Note,
+    val isGlobalKnowledge: Boolean = false,
     val pinned: Boolean = false
 ) {
     val displayTitle: String

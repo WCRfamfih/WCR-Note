@@ -11,8 +11,10 @@ import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionResult
 import com.example.ainote.domain.model.CompletionRequest
 import com.example.ainote.domain.model.CompletionResult
+import com.example.ainote.domain.model.KnowledgeContextResolution
 import com.example.ainote.domain.model.KnowledgeExtractionDraft
 import com.example.ainote.domain.model.KnowledgeExtractionRequest
+import com.example.ainote.domain.model.Note
 import com.example.ainote.domain.model.titleAliases
 import kotlinx.coroutines.flow.first
 
@@ -123,6 +125,30 @@ class AiRepository(
         }
     }
 
+    suspend fun resolveKnowledgeContext(
+        context: String,
+        noteId: Long?,
+        includeAllMatches: Boolean = false
+    ): KnowledgeContextResolution {
+        val settings = settingsDataStore.settings.first()
+        if (!settings.knowledgeBaseEnabled || context.isBlank()) {
+            return KnowledgeContextResolution()
+        }
+        val matches = matchKnowledgeEntries(context, noteId)
+        if (matches.isEmpty()) {
+            return KnowledgeContextResolution(limit = settings.knowledgeSendLimit.coerceAtLeast(1))
+        }
+        val limit = settings.knowledgeSendLimit.coerceAtLeast(1)
+        val limitedMatches = if (includeAllMatches) matches else matches.take(limit)
+        return KnowledgeContextResolution(
+            matches = matches,
+            limitedMatches = limitedMatches,
+            limit = limit,
+            overflow = matches.size > limit,
+            relatedKnowledge = buildRelatedKnowledgePayload(limitedMatches)
+        )
+    }
+
     suspend fun testConnection(presetId: String? = null): Result<String> {
         val settings = settingsDataStore.settings.first()
         val preset = settings.aiServicePresets.firstOrNull { it.id == presetId }
@@ -165,21 +191,33 @@ class AiRepository(
     }
 
     private suspend fun CompletionRequest.withRelatedKnowledge(settings: UserSettings): CompletionRequest {
-        if (!settings.knowledgeBaseEnabled || relatedKnowledge.isNotBlank()) return this
+        if (!settings.knowledgeBaseEnabled || disableKnowledgeInjection || relatedKnowledge.isNotBlank()) return this
         val context = listOfNotNull(noteTitle, beforeCursor, afterCursor).joinToString("\n")
-        return copy(relatedKnowledge = buildRelatedKnowledge(context, noteId))
+        val resolution = resolveKnowledgeContext(context, noteId)
+        return copy(
+            relatedKnowledge = resolution.relatedKnowledge,
+            disableKnowledgeInjection = resolution.relatedKnowledge.isBlank()
+        )
     }
 
     private suspend fun AiActionRequest.withRelatedKnowledge(settings: UserSettings): AiActionRequest {
-        if (!settings.knowledgeBaseEnabled || relatedKnowledge.isNotBlank()) return this
+        if (!settings.knowledgeBaseEnabled || disableKnowledgeInjection || relatedKnowledge.isNotBlank()) return this
         val context = listOfNotNull(noteTitle, content, selectedText).joinToString("\n")
-        return copy(relatedKnowledge = buildRelatedKnowledge(context, noteId))
+        val resolution = resolveKnowledgeContext(context, noteId)
+        return copy(
+            relatedKnowledge = resolution.relatedKnowledge,
+            disableKnowledgeInjection = resolution.relatedKnowledge.isBlank()
+        )
     }
 
-    private suspend fun buildRelatedKnowledge(context: String, noteId: Long?): String {
-        val repository = noteRepository ?: return ""
-        if (context.isBlank()) return ""
-        val matches = repository.getEffectiveKnowledgeEntries(noteId)
+    private suspend fun matchKnowledgeEntries(context: String, noteId: Long?): List<Note> {
+        val repository = noteRepository ?: return emptyList()
+        if (context.isBlank()) return emptyList()
+        val entries = repository.getEffectiveKnowledgeEntries(noteId)
+        val globalMatches = entries.filter { it.isGlobalKnowledge }
+        val aliasMatches = entries
+            .asSequence()
+            .filterNot { it.isGlobalKnowledge }
             .mapNotNull { note ->
                 val firstMatchIndex = note.titleAliases()
                     .map { alias -> context.indexOf(alias).takeIf { it >= 0 } }
@@ -189,7 +227,11 @@ class AiRepository(
             }
             .sortedBy { it.second }
             .map { it.first }
-            .take(MAX_KNOWLEDGE_MATCHES)
+            .toList()
+        return (globalMatches + aliasMatches).distinctBy { it.id }
+    }
+
+    private fun buildRelatedKnowledgePayload(matches: List<Note>): String {
         if (matches.isEmpty()) return ""
         AiDebugLogStore.add(
             title = "Knowledge context injected",
@@ -208,7 +250,6 @@ class AiRepository(
 
     private companion object {
         const val MIN_REAL_API_COMPLETION_INTERVAL_MS = 1_500L
-        const val MAX_KNOWLEDGE_MATCHES = 5
         const val MAX_KNOWLEDGE_CHARS = 1_200
     }
 }

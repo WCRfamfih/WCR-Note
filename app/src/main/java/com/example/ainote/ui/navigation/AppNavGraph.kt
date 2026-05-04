@@ -16,6 +16,7 @@ import com.example.ainote.ui.editor.NoteKnowledgeScopeScreen
 import com.example.ainote.ui.notes.NoteListScreen
 import com.example.ainote.ui.settings.AiDebugLogScreen
 import com.example.ainote.ui.settings.AiSettingsScreen
+import com.example.ainote.ui.settings.DisplaySettingsScreen
 import com.example.ainote.ui.settings.SettingsScreen
 
 @Composable
@@ -117,8 +118,15 @@ fun AppNavGraph(container: AppContainer) {
                 aiRepository = container.aiRepository,
                 noteRepository = container.noteRepository,
                 onOpenAiSettings = { navController.navigate("ai_settings") },
+                onOpenDisplaySettings = { navController.navigate("display_settings") },
                 onOpenKnowledgeSettings = { navController.navigate("knowledge_settings") },
                 onOpenAiDebugLog = { navController.navigate("ai_debug_log") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable("display_settings") {
+            DisplaySettingsScreen(
+                dataStore = container.settingsDataStore,
                 onBack = { navController.popBackStack() }
             )
         }

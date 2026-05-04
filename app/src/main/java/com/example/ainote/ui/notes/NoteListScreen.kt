@@ -449,11 +449,21 @@ private fun NoteCard(
                     modifier = Modifier.weight(1f)
                 )
                 if (isKnowledge) {
-                    Text(
-                        text = "\u25c6",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (note.isGlobalKnowledge) {
+                            Text(
+                                text = "全局",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = 6.dp)
+                            )
+                        }
+                        Text(
+                            text = "\u25c6",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))

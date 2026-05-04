@@ -38,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
@@ -64,6 +65,9 @@ fun GhostTextEditor(
     modifier: Modifier = Modifier,
     ghostText: String?,
     textSizeSp: Int,
+    lineHeightSp: Float,
+    letterSpacingSp: Float,
+    fontFamily: FontFamily,
     onAcceptGhostText: () -> Unit,
     onDismissGhostText: () -> Unit,
     onRetryGhostText: () -> Unit,
@@ -76,7 +80,10 @@ fun GhostTextEditor(
     val parentTextToolbar = LocalTextToolbar.current
     val textStyle = MaterialTheme.typography.bodyLarge.copy(
         color = colorScheme.onSurface,
-        fontSize = textSizeSp.sp
+        fontSize = textSizeSp.sp,
+        lineHeight = lineHeightSp.sp,
+        letterSpacing = letterSpacingSp.sp,
+        fontFamily = fontFamily
     )
     val ghostStyle = textStyle.copy(color = colorScheme.onSurfaceVariant.copy(alpha = 0.48f))
     val visualTransformation = remember(textStyle, colorScheme, renderMarkdown) {

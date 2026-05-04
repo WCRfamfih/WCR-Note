@@ -40,7 +40,8 @@ class NoteRepository(
                 createdAt = now,
                 updatedAt = now,
                 folderName = folderName.trim(),
-                contentType = contentType.storageValue
+                contentType = contentType.storageValue,
+                isGlobalKnowledge = false
             )
         )
     }
@@ -51,7 +52,8 @@ class NoteRepository(
         content: String,
         createdAt: Long,
         pinned: Boolean,
-        contentType: NoteContentType
+        contentType: NoteContentType,
+        isGlobalKnowledge: Boolean = false
     ) {
         val updatedAt = System.currentTimeMillis()
         val resolvedTitle = title.ifBlank { extractTitle(content) }
@@ -65,6 +67,7 @@ class NoteRepository(
             updatedAt = updatedAt,
             folderName = existing?.folderName ?: dao.getFolderName(id).orEmpty(),
             contentType = resolvedContentType.storageValue,
+            isGlobalKnowledge = if (resolvedContentType == NoteContentType.Knowledge) isGlobalKnowledge else false,
             pinned = pinned
         )
         if (existing == null) {
@@ -122,7 +125,8 @@ class NoteRepository(
                     content = backup.content,
                     createdAt = now,
                     updatedAt = now,
-                    contentType = backup.contentType.storageValue
+                    contentType = backup.contentType.storageValue,
+                    isGlobalKnowledge = false
                 )
             )
         }
@@ -152,7 +156,7 @@ class NoteRepository(
         return searchNotes(query = query, contentType = NoteContentType.Knowledge)
     }
 
-    suspend fun createKnowledge(title: String, content: String): Long {
+    suspend fun createKnowledge(title: String, content: String, isGlobalKnowledge: Boolean = false): Long {
         val id = createNote(contentType = NoteContentType.Knowledge)
         saveNote(
             id = id,
@@ -160,7 +164,8 @@ class NoteRepository(
             content = content,
             createdAt = System.currentTimeMillis(),
             pinned = false,
-            contentType = NoteContentType.Knowledge
+            contentType = NoteContentType.Knowledge,
+            isGlobalKnowledge = isGlobalKnowledge
         )
         return id
     }
@@ -173,7 +178,8 @@ class NoteRepository(
             content = content,
             createdAt = existing.createdAt,
             pinned = existing.pinned,
-            contentType = NoteContentType.Knowledge
+            contentType = NoteContentType.Knowledge,
+            isGlobalKnowledge = existing.isGlobalKnowledge
         )
     }
 
@@ -235,6 +241,7 @@ class NoteRepository(
         updatedAt = updatedAt,
         folderName = folderName,
         contentType = NoteContentType.from(contentType),
+        isGlobalKnowledge = isGlobalKnowledge,
         pinned = pinned
     )
 

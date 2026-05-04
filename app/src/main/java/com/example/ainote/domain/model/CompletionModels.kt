@@ -12,7 +12,8 @@ data class CompletionRequest(
     val writingMode: WritingMode = WritingMode.Normal,
     val maxLength: Int,
     val language: String = "zh",
-    val relatedKnowledge: String = ""
+    val relatedKnowledge: String = "",
+    val disableKnowledgeInjection: Boolean = false
 )
 
 data class CompletionResult(
@@ -41,7 +42,8 @@ data class AiActionRequest(
     val selectedText: String? = null,
     val maxLength: Int,
     val language: String = "zh",
-    val relatedKnowledge: String = ""
+    val relatedKnowledge: String = "",
+    val disableKnowledgeInjection: Boolean = false
 )
 
 data class AiActionResult(

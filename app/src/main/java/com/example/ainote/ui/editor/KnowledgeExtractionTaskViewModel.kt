@@ -9,11 +9,13 @@ import com.example.ainote.domain.model.KnowledgeExtractionDraft
 import com.example.ainote.domain.model.KnowledgeExtractionRequest
 import com.example.ainote.domain.model.KnowledgeTargetSummary
 import com.example.ainote.domain.model.Note
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -34,6 +36,7 @@ data class KnowledgeExtractionTaskUiState(
     val errorMessage: String? = null
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class KnowledgeExtractionTaskViewModel(
     private val noteId: Long,
     initialMaterial: String,
@@ -47,27 +50,55 @@ class KnowledgeExtractionTaskViewModel(
         KnowledgeExtractionTaskUiState(sourceMaterial = initialMaterial.trim())
     )
 
-    val uiState: StateFlow<KnowledgeExtractionTaskUiState> = combine(
-        taskState,
-        instruction,
-        selectedTarget,
-        noteRepository.observeRecentKnowledgeEntries().map { notes -> notes.map { note -> note.toTargetSummary() } },
-        searchQuery,
-        searchQuery.flatMapLatest { query ->
+    private val recentTargetsFlow: Flow<List<KnowledgeTargetSummary>> =
+        noteRepository.observeRecentKnowledgeEntries().map { notes ->
+            notes.map { note -> note.toTargetSummary() }
+        }
+
+    private val searchResultsFlow: Flow<List<KnowledgeTargetSummary>> =
+        searchQuery.flatMapLatest { query: String ->
             if (query.isBlank()) {
-                MutableStateFlow(emptyList<KnowledgeTargetSummary>())
+                MutableStateFlow(emptyList())
             } else {
-                noteRepository.searchKnowledgeEntries(query).map { notes -> notes.map { note -> note.toTargetSummary() } }
+                noteRepository.searchKnowledgeEntries(query).map { notes ->
+                    notes.map { note -> note.toTargetSummary() }
+                }
             }
         }
-    ) { state, instructionValue, selectedTargetValue, recentTargets, searchQueryValue, searchResults ->
-        state.copy(
-            instruction = instructionValue,
-            selectedTarget = selectedTargetValue,
-            recentTargets = recentTargets,
-            searchQuery = searchQueryValue,
-            searchResults = searchResults
-        )
+
+    private val basePresentationState: Flow<KnowledgeExtractionTaskUiState> = combine(
+        taskState,
+        instruction
+    ) { state, instructionValue ->
+        state.copy(instruction = instructionValue)
+    }
+
+    private val presentationState: Flow<KnowledgeExtractionTaskUiState> = combine(
+        basePresentationState,
+        selectedTarget
+    ) { state, selectedTargetValue ->
+        state.copy(selectedTarget = selectedTargetValue)
+    }
+
+    private val taskPresentationState: Flow<KnowledgeExtractionTaskUiState> = combine(
+        presentationState,
+        recentTargetsFlow
+    ) { state, recentTargets ->
+        state.copy(recentTargets = recentTargets)
+    }
+
+    private val searchPresentationState: Flow<KnowledgeExtractionTaskUiState> = combine(
+        taskPresentationState,
+        searchQuery
+    ) { state, searchQueryValue ->
+        state.copy(searchQuery = searchQueryValue)
+    }
+
+    val uiState: StateFlow<KnowledgeExtractionTaskUiState> = combine(
+        searchPresentationState,
+        searchResultsFlow
+    ) { state, searchResults ->
+        state.copy(searchResults = searchResults)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), taskState.value)
 
     init {
