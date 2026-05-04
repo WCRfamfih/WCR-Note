@@ -12,6 +12,7 @@ import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
 import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionType
+import com.example.ainote.domain.model.KnowledgeExtractionLaunchArgs
 import com.example.ainote.domain.model.KnowledgeScopeSummary
 import com.example.ainote.domain.model.Note
 import com.example.ainote.domain.model.NoteContentType
@@ -215,6 +216,7 @@ class NoteEditorViewModel(
                 selectedText = selectedText,
                 maxLength = when (actionType) {
                     AiActionType.ContinueWriting -> 120
+                    AiActionType.ExtractToKnowledge -> 400
                     AiActionType.Expand -> 220
                     AiActionType.Formal -> 180
                     AiActionType.Concise -> 100
@@ -225,6 +227,22 @@ class NoteEditorViewModel(
             )
             executeManualAction(request, selectedText)
         }
+    }
+
+    fun buildKnowledgeExtractionLaunch(settings: UserSettings): KnowledgeExtractionLaunchArgs {
+        val state = _uiState.value
+        return KnowledgeExtractionLaunchArgs(
+            noteId = state.noteId,
+            contentType = state.contentType,
+            material = buildCompletionContext.buildMaterial(
+                content = state.content.text,
+                selectionStart = state.content.selection.start,
+                selectionEnd = state.content.selection.end,
+                useFullNoteContext = settings.useFullNoteContext,
+                beforeLineCount = settings.completionBeforeLineCount,
+                afterLineCount = settings.completionAfterLineCount
+            )
+        )
     }
 
     fun retryManualAction() {

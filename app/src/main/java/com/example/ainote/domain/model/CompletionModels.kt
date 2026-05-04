@@ -24,6 +24,7 @@ data class CompletionResult(
 
 enum class AiActionType(val label: String) {
     ContinueWriting("\u7ee7\u7eed\u5199"),
+    ExtractToKnowledge("\u63d0\u53d6/\u66f4\u65b0\u5230\u77e5\u8bc6\u5e93"),
     Expand("\u6269\u5199"),
     Formal("\u6539\u5f97\u66f4\u6b63\u5f0f"),
     Concise("\u6539\u5f97\u66f4\u7b80\u6d01"),

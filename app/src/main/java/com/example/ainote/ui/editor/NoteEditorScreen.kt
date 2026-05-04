@@ -65,6 +65,8 @@ import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
+import com.example.ainote.domain.model.AiActionType
+import com.example.ainote.domain.model.KnowledgeExtractionLaunchArgs
 import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.ui.components.AiActionBottomSheet
 import com.example.ainote.ui.components.AiActionResultCard
@@ -88,6 +90,7 @@ fun NoteEditorScreen(
     aiRepository: AiRepository,
     settingsDataStore: SettingsDataStore,
     onOpenKnowledgeScope: (Long) -> Unit,
+    onOpenKnowledgeExtraction: (KnowledgeExtractionLaunchArgs) -> Unit,
     onOpenSettings: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -125,7 +128,11 @@ fun NoteEditorScreen(
             onDismiss = { showAiMenu = false },
             onActionClick = { action ->
                 showAiMenu = false
-                viewModel.runManualAction(action)
+                if (action == AiActionType.ExtractToKnowledge) {
+                    onOpenKnowledgeExtraction(viewModel.buildKnowledgeExtractionLaunch(settings))
+                } else {
+                    viewModel.runManualAction(action)
+                }
             }
         )
     }

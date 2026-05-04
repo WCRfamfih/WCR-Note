@@ -46,6 +46,12 @@ fun AiActionBottomSheet(
                 onClick = { onActionClick(AiActionType.ContinueWriting) }
             )
             AiActionItem(
+                icon = Icons.Default.WorkspacePremium,
+                title = "\u63d0\u53d6/\u66f4\u65b0\u5230\u77e5\u8bc6\u5e93",
+                subtitle = "\u57fa\u4e8e\u5f53\u524d\u6750\u6599\u751f\u6210\u6216\u8986\u76d6\u4e00\u6761\u77e5\u8bc6",
+                onClick = { onActionClick(AiActionType.ExtractToKnowledge) }
+            )
+            AiActionItem(
                 icon = Icons.Default.OpenInFull,
                 title = "\u6269\u5199",
                 subtitle = "\u5c06\u9009\u4e2d\u5185\u5bb9\u6216\u5f53\u524d\u5185\u5bb9\u5199\u5f97\u66f4\u5b8c\u6574",

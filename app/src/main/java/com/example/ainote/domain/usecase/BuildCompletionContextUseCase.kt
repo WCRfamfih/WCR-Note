@@ -4,6 +4,27 @@ import com.example.ainote.domain.model.CompletionRequest
 import com.example.ainote.domain.model.WritingMode
 
 class BuildCompletionContextUseCase {
+    fun buildMaterial(
+        content: String,
+        selectionStart: Int,
+        selectionEnd: Int,
+        useFullNoteContext: Boolean,
+        beforeLineCount: Int = 5,
+        afterLineCount: Int = 2
+    ): String {
+        val safeStart = selectionStart.coerceIn(0, content.length)
+        val safeEnd = selectionEnd.coerceIn(0, content.length)
+        if (safeStart != safeEnd) {
+            return content.substring(minOf(safeStart, safeEnd), maxOf(safeStart, safeEnd))
+        }
+        val context = if (useFullNoteContext) {
+            content.take(safeStart) to content.drop(safeStart)
+        } else {
+            buildLineBoundedContext(content, safeStart, beforeLineCount, afterLineCount)
+        }
+        return (context.first + context.second).trim()
+    }
+
     operator fun invoke(
         content: String,
         cursor: Int,

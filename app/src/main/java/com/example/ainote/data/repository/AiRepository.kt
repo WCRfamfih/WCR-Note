@@ -11,6 +11,8 @@ import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionResult
 import com.example.ainote.domain.model.CompletionRequest
 import com.example.ainote.domain.model.CompletionResult
+import com.example.ainote.domain.model.KnowledgeExtractionDraft
+import com.example.ainote.domain.model.KnowledgeExtractionRequest
 import com.example.ainote.domain.model.titleAliases
 import kotlinx.coroutines.flow.first
 
@@ -95,6 +97,30 @@ class AiRepository(
             openAiService.runAction(enrichedRequest, preset.toUserSettings())
         }
         return result.copy(text = filterCompletion(result.text, enrichedRequest.maxLength))
+    }
+
+    suspend fun extractKnowledge(request: KnowledgeExtractionRequest): KnowledgeExtractionDraft {
+        val settings = settingsDataStore.settings.first()
+        val preset = settings.presetForUsage(AiPresetUsage.AiTool)
+        val repository = noteRepository
+        val targetKnowledge = request.targetKnowledgeId?.let { targetId -> repository?.getKnowledgeEntry(targetId) }
+        AiDebugLogStore.add(
+            title = "Knowledge extraction request",
+            detail = """
+                preset=${preset.label}
+                provider=${preset.provider}
+                fake=${preset.shouldUseFake()}
+                noteId=${request.noteId}
+                targetKnowledgeId=${request.targetKnowledgeId}
+                instruction=${request.instruction}
+                materialLength=${request.material.length}
+            """.trimIndent()
+        )
+        return if (preset.shouldUseFake()) {
+            fakeService.extractKnowledge(request, targetKnowledge)
+        } else {
+            openAiService.extractKnowledgeDraft(request, targetKnowledge, preset.toUserSettings())
+        }
     }
 
     suspend fun testConnection(presetId: String? = null): Result<String> {

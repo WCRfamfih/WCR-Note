@@ -10,6 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.ainote.di.AppContainer
 import com.example.ainote.domain.model.NoteContentType
+import com.example.ainote.ui.editor.KnowledgeExtractionTaskScreen
 import com.example.ainote.ui.editor.NoteEditorScreen
 import com.example.ainote.ui.editor.NoteKnowledgeScopeScreen
 import com.example.ainote.ui.notes.NoteListScreen
@@ -20,6 +21,7 @@ import com.example.ainote.ui.settings.SettingsScreen
 @Composable
 fun AppNavGraph(container: AppContainer) {
     val navController = rememberNavController()
+    val extractionMaterialKey = "knowledge_extraction_material"
 
     NavHost(
         navController = navController,
@@ -69,7 +71,31 @@ fun AppNavGraph(container: AppContainer) {
                 onOpenKnowledgeScope = { scopedNoteId ->
                     navController.navigate("editor/note/$scopedNoteId/knowledge_scope")
                 },
+                onOpenKnowledgeExtraction = { args ->
+                    navController.currentBackStackEntry?.savedStateHandle?.set(extractionMaterialKey, args.material)
+                    navController.navigate("editor/${args.contentType.storageValue}/${args.noteId}/extract_knowledge")
+                },
                 onOpenSettings = { navController.navigate("settings") },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = "editor/{contentType}/{noteId}/extract_knowledge",
+            arguments = listOf(
+                navArgument("contentType") { type = NavType.StringType },
+                navArgument("noteId") { type = NavType.LongType }
+            )
+        ) { entry ->
+            val noteId = entry.arguments?.getLong("noteId") ?: return@composable
+            val initialMaterial = navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.get<String>(extractionMaterialKey)
+                .orEmpty()
+            KnowledgeExtractionTaskScreen(
+                noteId = noteId,
+                initialMaterial = initialMaterial,
+                noteRepository = container.noteRepository,
+                aiRepository = container.aiRepository,
                 onBack = { navController.popBackStack() }
             )
         }

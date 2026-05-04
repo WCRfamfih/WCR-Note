@@ -5,6 +5,9 @@ import com.example.ainote.domain.model.AiActionResult
 import com.example.ainote.domain.model.AiActionType
 import com.example.ainote.domain.model.CompletionRequest
 import com.example.ainote.domain.model.CompletionResult
+import com.example.ainote.domain.model.KnowledgeExtractionDraft
+import com.example.ainote.domain.model.KnowledgeExtractionRequest
+import com.example.ainote.domain.model.Note
 import kotlinx.coroutines.delay
 
 class FakeAiCompletionService : AiCompletionService {
@@ -31,6 +34,7 @@ class FakeAiCompletionService : AiCompletionService {
         val source = request.selectedText?.takeIf { it.isNotBlank() } ?: request.content
         val text = when (request.actionType) {
             AiActionType.ContinueWriting -> continueWriting(source)
+            AiActionType.ExtractToKnowledge -> extractKnowledge(source)
             AiActionType.Expand -> expand(source)
             AiActionType.Formal -> formal(source)
             AiActionType.Concise -> concise(source)
@@ -42,6 +46,34 @@ class FakeAiCompletionService : AiCompletionService {
             text = text,
             provider = "Fake",
             latencyMs = System.currentTimeMillis() - startedAt
+        )
+    }
+
+    suspend fun extractKnowledge(
+        request: KnowledgeExtractionRequest,
+        targetKnowledge: Note?
+    ): KnowledgeExtractionDraft {
+        delay(650)
+        val sourceLine = firstMeaningfulLine(request.material)
+        val title = when {
+            targetKnowledge != null -> targetKnowledge.displayTitle
+            sourceLine.isNotBlank() -> sourceLine.take(18)
+            else -> "\u65b0\u77e5\u8bc6"
+        }
+        val content = buildString {
+            appendLine("\u6307\u4ee4\uff1a${request.instruction.trim()}")
+            appendLine()
+            if (targetKnowledge != null) {
+                appendLine("\u539f\u77e5\u8bc6\uff1a${targetKnowledge.displayTitle}")
+                appendLine(targetKnowledge.content.take(120))
+                appendLine()
+            }
+            append(request.material.trim().ifBlank { extractKnowledge(request.material) })
+        }.trim()
+        return KnowledgeExtractionDraft(
+            title = title,
+            content = content,
+            targetKnowledgeId = request.targetKnowledgeId
         )
     }
 
@@ -98,6 +130,19 @@ class FakeAiCompletionService : AiCompletionService {
             content.contains("\u4f1a\u8bae") -> "\u4f1a\u8bae\u8bb0\u5f55"
             content.contains("\u8ba1\u5212") -> "\u884c\u52a8\u8ba1\u5212"
             else -> "\u65b0\u7684\u7b14\u8bb0"
+        }
+    }
+
+    private fun extractKnowledge(content: String): String {
+        val lines = content.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(4)
+            .toList()
+        return if (lines.isEmpty()) {
+            "\u8bf7\u8865\u5145\u66f4\u5177\u4f53\u7684\u6750\u6599\u3002"
+        } else {
+            lines.joinToString("\n")
         }
     }
 

@@ -4,6 +4,7 @@ import com.example.ainote.data.local.NoteDao
 import com.example.ainote.data.local.NoteEntity
 import com.example.ainote.data.local.NoteKnowledgeScopeEntity
 import com.example.ainote.domain.model.KnowledgeScopeSummary
+import com.example.ainote.domain.model.KnowledgeTargetSummary
 import com.example.ainote.domain.model.Note
 import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.domain.model.NoteKnowledgeScope
@@ -136,6 +137,46 @@ class NoteRepository(
         return observeNotes(NoteContentType.Knowledge)
     }
 
+    suspend fun getKnowledgeEntry(id: Long): Note? {
+        val note = dao.getNote(id) ?: return null
+        return note.toDomain().takeIf { it.contentType == NoteContentType.Knowledge }
+    }
+
+    fun observeRecentKnowledgeEntries(limit: Int = 8): Flow<List<Note>> {
+        return observeKnowledgeEntries().map { notes ->
+            notes.sortedByDescending { it.updatedAt }.take(limit)
+        }
+    }
+
+    fun searchKnowledgeEntries(query: String): Flow<List<Note>> {
+        return searchNotes(query = query, contentType = NoteContentType.Knowledge)
+    }
+
+    suspend fun createKnowledge(title: String, content: String): Long {
+        val id = createNote(contentType = NoteContentType.Knowledge)
+        saveNote(
+            id = id,
+            title = title,
+            content = content,
+            createdAt = System.currentTimeMillis(),
+            pinned = false,
+            contentType = NoteContentType.Knowledge
+        )
+        return id
+    }
+
+    suspend fun overwriteKnowledge(id: Long, title: String, content: String) {
+        val existing = getKnowledgeEntry(id) ?: return
+        saveNote(
+            id = id,
+            title = title,
+            content = content,
+            createdAt = existing.createdAt,
+            pinned = existing.pinned,
+            contentType = NoteContentType.Knowledge
+        )
+    }
+
     suspend fun getNoteKnowledgeScope(noteId: Long): NoteKnowledgeScope? {
         return dao.getKnowledgeScope(noteId)?.toDomain()
     }
@@ -199,5 +240,14 @@ class NoteRepository(
 
     private fun extractTitle(content: String): String {
         return content.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(24).orEmpty()
+    }
+
+    fun Note.toKnowledgeTargetSummary(): KnowledgeTargetSummary {
+        return KnowledgeTargetSummary(
+            id = id,
+            title = displayTitle,
+            folderName = folderName,
+            updatedAt = updatedAt
+        )
     }
 }

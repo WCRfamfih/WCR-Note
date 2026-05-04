@@ -7,6 +7,9 @@ import com.example.ainote.domain.model.AiActionResult
 import com.example.ainote.domain.model.AiActionType
 import com.example.ainote.domain.model.CompletionRequest
 import com.example.ainote.domain.model.CompletionResult
+import com.example.ainote.domain.model.KnowledgeExtractionDraft
+import com.example.ainote.domain.model.KnowledgeExtractionRequest
+import com.example.ainote.domain.model.Note
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -59,6 +62,31 @@ class OpenAiCompatibleCompletionService(
             provider = settings.apiProvider,
             latencyMs = System.currentTimeMillis() - startedAt
         )
+    }
+
+    suspend fun extractKnowledgeDraft(
+        request: KnowledgeExtractionRequest,
+        targetKnowledge: Note?,
+        settings: UserSettings
+    ): KnowledgeExtractionDraft {
+        val startedAt = System.currentTimeMillis()
+        val text = requestChatCompletion(
+            settings = settings,
+            systemPrompt = extractionSystemPrompt(targetKnowledge != null),
+            userPrompt = buildExtractionPrompt(request, targetKnowledge),
+            maxTokens = 1_200,
+            temperature = 0.2
+        )
+        val draft = parseKnowledgeDraft(text).copy(targetKnowledgeId = request.targetKnowledgeId)
+        AiDebugLogStore.add(
+            title = "Knowledge extraction result",
+            detail = """
+                latencyMs=${System.currentTimeMillis() - startedAt}
+                title=${draft.title}
+                contentLength=${draft.content.length}
+            """.trimIndent()
+        )
+        return draft
     }
 
     private suspend fun requestChatCompletion(
@@ -175,7 +203,7 @@ class OpenAiCompatibleCompletionService(
     private fun parseChatCompletion(body: String): String {
         val json = runCatching { JSONObject(body) }.getOrElse {
             throw AiApiException(
-                "API 杩斿洖鐨勪笉鏄?JSON锛岃妫€鏌?API Base URL 鏄惁鏄畬鏁寸殑 chat/completions 鎺ュ彛銆傝繑鍥炲唴瀹癸細${body.previewForError()}"
+                "API \u8fd4\u56de\u4e0d\u662f\u6709\u6548 JSON\uff0c\u8bf7\u68c0\u67e5 API Base URL \u662f\u5426\u6307\u5411 chat/completions \u63a5\u53e3\uff1a${body.previewForError()}"
             )
         }
         val choices = json.optJSONArray("choices") ?: return ""
@@ -250,6 +278,7 @@ class OpenAiCompatibleCompletionService(
     private fun actionSystemPrompt(actionType: AiActionType): String {
         return when (actionType) {
             AiActionType.ContinueWriting -> "\u4f60\u662f\u5199\u4f5c\u52a9\u624b\u3002\u6839\u636e\u7b14\u8bb0\u7eed\u5199 1 \u5230 3 \u53e5\uff0c\u4fdd\u6301\u539f\u6709\u8bed\u6c14\uff0c\u4e0d\u8981\u89e3\u91ca\u3002"
+            AiActionType.ExtractToKnowledge -> "\u4f60\u662f\u77e5\u8bc6\u63d0\u70bc\u52a9\u624b\u3002\u8bf7\u6839\u636e\u7528\u6237\u6307\u4ee4\u4ece\u6750\u6599\u4e2d\u63d0\u70bc\u6216\u6539\u5199\u4e00\u6761\u5b8c\u6574\u77e5\u8bc6\u3002"
             AiActionType.Expand -> "\u4f60\u662f\u5199\u4f5c\u52a9\u624b\u3002\u5c06\u5185\u5bb9\u6269\u5199\u5f97\u66f4\u5b8c\u6574\uff0c\u4fdd\u7559\u539f\u610f\uff0c\u4e0d\u6dfb\u52a0\u65e0\u6839\u636e\u4e8b\u5b9e\u3002"
             AiActionType.Formal -> "\u4f60\u662f\u5199\u4f5c\u52a9\u624b\u3002\u5c06\u5185\u5bb9\u6539\u5199\u5f97\u66f4\u6b63\u5f0f\uff0c\u4fdd\u7559\u539f\u610f\uff0c\u4e0d\u8981\u89e3\u91ca\u3002"
             AiActionType.Concise -> "\u4f60\u662f\u5199\u4f5c\u52a9\u624b\u3002\u5c06\u5185\u5bb9\u6539\u5199\u5f97\u66f4\u7b80\u6d01\uff0c\u4fdd\u7559\u6838\u5fc3\u610f\u601d\uff0c\u4e0d\u8981\u89e3\u91ca\u3002"
@@ -270,4 +299,58 @@ class OpenAiCompatibleCompletionService(
 
             ${request.relatedKnowledge.takeIf { it.isNotBlank() } ?: ""}
         """.trimIndent()
-    }}
+    }
+
+    private fun extractionSystemPrompt(hasTargetKnowledge: Boolean): String {
+        val modeRule = if (hasTargetKnowledge) {
+            "You are updating an existing knowledge card. Rewrite the full final card from scratch."
+        } else {
+            "You are creating a new knowledge card from source material."
+        }
+        return """
+            You extract or update a knowledge-base entry from user-provided source text.
+            $modeRule
+            Output only valid JSON with exactly two string fields: "title" and "content".
+            The title must be concise and useful.
+            The content must be a complete final knowledge-card body.
+            Do not include explanations, markdown fences, or extra keys.
+        """.trimIndent()
+    }
+
+    private fun buildExtractionPrompt(request: KnowledgeExtractionRequest, targetKnowledge: Note?): String {
+        return buildString {
+            appendLine("User instruction:")
+            appendLine(request.instruction.trim())
+            appendLine()
+            targetKnowledge?.let { target ->
+                appendLine("Existing knowledge to update:")
+                appendLine("Title: ${target.title}")
+                appendLine("Content:")
+                appendLine(target.content)
+                appendLine()
+            }
+            appendLine("Source material:")
+            appendLine(request.material.trim())
+            appendLine()
+            appendLine("""Return JSON only: {"title":"...","content":"..."}""")
+        }.trim()
+    }
+
+    private fun parseKnowledgeDraft(raw: String): KnowledgeExtractionDraft {
+        val cleaned = raw
+            .trim()
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+        val json = runCatching { JSONObject(cleaned) }.getOrElse {
+            throw AiApiException("\u0041\u0049 \u8fd4\u56de\u7684\u77e5\u8bc6\u8349\u6848\u4e0d\u662f\u6709\u6548 JSON\u3002")
+        }
+        val title = json.optString("title").trim()
+        val content = json.optString("content").trim()
+        if (title.isBlank() || content.isBlank()) {
+            throw AiApiException("\u0041\u0049 \u8fd4\u56de\u7684\u77e5\u8bc6\u8349\u6848\u7f3a\u5c11\u6807\u9898\u6216\u6b63\u6587\u3002")
+        }
+        return KnowledgeExtractionDraft(title = title, content = content)
+    }
+}
