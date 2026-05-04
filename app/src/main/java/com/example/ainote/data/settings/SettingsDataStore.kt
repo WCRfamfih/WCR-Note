@@ -5,20 +5,30 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 private val Context.settingsDataStore by preferencesDataStore(name = "user_settings")
 
 class SettingsDataStore(private val context: Context) {
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
+        val legacy = legacyPresetFromPrefs(prefs)
+        val presets = readAiServicePresets(prefs, legacy)
+        val defaultUsageId = if (presets.any { it.id == legacy.id } && !legacy.shouldUseFake()) legacy.id else "fake"
         UserSettings(
             apiProvider = prefs[Keys.ApiProvider] ?: "Fake",
             apiKey = prefs[Keys.ApiKey] ?: "",
             apiBaseUrl = prefs[Keys.ApiBaseUrl] ?: "https://api.openai.com/v1/chat/completions",
             apiModel = prefs[Keys.ApiModel] ?: "gpt-4o-mini",
+            aiServicePresets = presets,
+            autoCompletionPresetId = prefs[Keys.AutoCompletionPresetId] ?: defaultUsageId,
+            manualCompletionPresetId = prefs[Keys.ManualCompletionPresetId] ?: defaultUsageId,
+            aiToolPresetId = prefs[Keys.AiToolPresetId] ?: defaultUsageId,
             autoCompletionEnabled = prefs[Keys.AutoCompletionEnabled] ?: true,
             preferChineseAutoCompletion = prefs[Keys.PreferChineseAutoCompletion] ?: true,
             skipBlankLineAutoCompletion = prefs[Keys.SkipBlankLineAutoCompletion] ?: true,
@@ -59,6 +69,21 @@ class SettingsDataStore(private val context: Context) {
             it[Keys.ApiModel] = preset.model
         }
     }
+
+    suspend fun updateAiServicePresets(value: List<AiServicePreset>) {
+        context.settingsDataStore.edit { prefs ->
+            val normalized = value.ifEmpty { defaultAiServicePresets() }.distinctBy { it.id }
+            prefs[Keys.AiServicePresetsJson] = normalized.toJson()
+            val ids = normalized.map { it.id }.toSet()
+            if (prefs[Keys.AutoCompletionPresetId] !in ids) prefs[Keys.AutoCompletionPresetId] = normalized.first().id
+            if (prefs[Keys.ManualCompletionPresetId] !in ids) prefs[Keys.ManualCompletionPresetId] = normalized.first().id
+            if (prefs[Keys.AiToolPresetId] !in ids) prefs[Keys.AiToolPresetId] = normalized.first().id
+        }
+    }
+
+    suspend fun updateAutoCompletionPresetId(value: String) = updateString(Keys.AutoCompletionPresetId, value)
+    suspend fun updateManualCompletionPresetId(value: String) = updateString(Keys.ManualCompletionPresetId, value)
+    suspend fun updateAiToolPresetId(value: String) = updateString(Keys.AiToolPresetId, value)
 
     suspend fun updateAutoCompletionEnabled(value: Boolean) = updateBoolean(Keys.AutoCompletionEnabled, value)
     suspend fun updatePreferChineseAutoCompletion(value: Boolean) = updateBoolean(Keys.PreferChineseAutoCompletion, value)
@@ -118,11 +143,73 @@ class SettingsDataStore(private val context: Context) {
         context.settingsDataStore.edit { it[key] = value }
     }
 
+    private fun legacyPresetFromPrefs(prefs: Preferences): AiServicePreset {
+        return AiServicePreset(
+            id = "legacy",
+            label = (prefs[Keys.ApiProvider] ?: "Current").ifBlank { "Current" },
+            provider = prefs[Keys.ApiProvider] ?: "Fake",
+            baseUrl = prefs[Keys.ApiBaseUrl] ?: "https://api.openai.com/v1/chat/completions",
+            model = prefs[Keys.ApiModel] ?: "gpt-4o-mini",
+            apiKey = prefs[Keys.ApiKey] ?: ""
+        )
+    }
+
+    private fun readAiServicePresets(prefs: Preferences, legacy: AiServicePreset): List<AiServicePreset> {
+        val stored = prefs[Keys.AiServicePresetsJson]
+        val parsed = stored?.let { json ->
+            runCatching {
+                val array = JSONArray(json)
+                buildList {
+                    for (index in 0 until array.length()) {
+                        val item = array.optJSONObject(index) ?: continue
+                        val id = item.optString("id")
+                        if (id.isNotBlank()) {
+                            add(
+                                AiServicePreset(
+                                    id = id,
+                                    label = item.optString("label").ifBlank { item.optString("provider").ifBlank { id } },
+                                    provider = item.optString("provider").ifBlank { "OpenAI" },
+                                    baseUrl = item.optString("baseUrl"),
+                                    model = item.optString("model"),
+                                    apiKey = item.optString("apiKey")
+                                )
+                            )
+                        }
+                    }
+                }
+            }.getOrNull()
+        }.orEmpty()
+        if (parsed.isNotEmpty()) return parsed.distinctBy { it.id }
+
+        val defaults = defaultAiServicePresets()
+        return if (legacy.shouldUseFake()) defaults else (listOf(legacy) + defaults).distinctBy { it.id }
+    }
+
+    private fun List<AiServicePreset>.toJson(): String {
+        val array = JSONArray()
+        forEach { preset ->
+            array.put(
+                JSONObject()
+                    .put("id", preset.id)
+                    .put("label", preset.label)
+                    .put("provider", preset.provider)
+                    .put("baseUrl", preset.baseUrl)
+                    .put("model", preset.model)
+                    .put("apiKey", preset.apiKey)
+            )
+        }
+        return array.toString()
+    }
+
     private object Keys {
         val ApiProvider = stringPreferencesKey("api_provider")
         val ApiKey = stringPreferencesKey("api_key")
         val ApiBaseUrl = stringPreferencesKey("api_base_url")
         val ApiModel = stringPreferencesKey("api_model")
+        val AiServicePresetsJson = stringPreferencesKey("ai_service_presets_json")
+        val AutoCompletionPresetId = stringPreferencesKey("auto_completion_preset_id")
+        val ManualCompletionPresetId = stringPreferencesKey("manual_completion_preset_id")
+        val AiToolPresetId = stringPreferencesKey("ai_tool_preset_id")
         val AutoCompletionEnabled = booleanPreferencesKey("auto_completion_enabled")
         val PreferChineseAutoCompletion = booleanPreferencesKey("prefer_chinese_auto_completion")
         val SkipBlankLineAutoCompletion = booleanPreferencesKey("skip_blank_line_auto_completion")

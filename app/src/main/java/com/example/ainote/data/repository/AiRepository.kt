@@ -3,6 +3,8 @@ package com.example.ainote.data.repository
 import com.example.ainote.data.debug.AiDebugLogStore
 import com.example.ainote.data.remote.FakeAiCompletionService
 import com.example.ainote.data.remote.OpenAiCompatibleCompletionService
+import com.example.ainote.data.settings.AiPresetUsage
+import com.example.ainote.data.settings.AiServicePreset
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
 import com.example.ainote.domain.model.AiActionRequest
@@ -28,11 +30,15 @@ class AiRepository(
 
     private suspend fun completeText(request: CompletionRequest, enforceThrottle: Boolean): CompletionResult {
         val settings = settingsDataStore.settings.first()
+        val preset = settings.presetForUsage(
+            if (enforceThrottle) AiPresetUsage.AutoCompletion else AiPresetUsage.ManualCompletion
+        )
         AiDebugLogStore.add(
             title = if (enforceThrottle) "Auto completion request" else "Manual completion request",
             detail = """
-                provider=${settings.apiProvider}
-                fake=${settings.shouldUseFake()}
+                preset=${preset.label}
+                provider=${preset.provider}
+                fake=${preset.shouldUseFake()}
                 maxLength=${request.maxLength}
                 language=${request.language}
                 beforeLength=${request.beforeCursor.length}
@@ -45,7 +51,7 @@ class AiRepository(
                 ${request.afterCursor}
             """.trimIndent()
         )
-        if (enforceThrottle && !settings.shouldUseFake()) {
+        if (enforceThrottle && !preset.shouldUseFake()) {
             val now = System.currentTimeMillis()
             val elapsed = now - lastAutomaticCompletionAt
             if (elapsed < MIN_REAL_API_COMPLETION_INTERVAL_MS) {
@@ -54,10 +60,10 @@ class AiRepository(
             }
             lastAutomaticCompletionAt = now
         }
-        val result = if (settings.shouldUseFake()) {
+        val result = if (preset.shouldUseFake()) {
             fakeService.completeText(request)
         } else {
-            openAiService.completeText(request, settings)
+            openAiService.completeText(request, preset.toUserSettings())
         }
         val filtered = filterCompletion(result.text, request.maxLength)
         AiDebugLogStore.add(
@@ -77,18 +83,21 @@ class AiRepository(
 
     suspend fun runAction(request: AiActionRequest): AiActionResult {
         val settings = settingsDataStore.settings.first()
-        val result = if (settings.shouldUseFake()) {
+        val preset = settings.presetForUsage(AiPresetUsage.AiTool)
+        val result = if (preset.shouldUseFake()) {
             fakeService.runAction(request)
         } else {
-            openAiService.runAction(request, settings)
+            openAiService.runAction(request, preset.toUserSettings())
         }
         return result.copy(text = filterCompletion(result.text, request.maxLength))
     }
 
-    suspend fun testConnection(): Result<String> {
+    suspend fun testConnection(presetId: String? = null): Result<String> {
         val settings = settingsDataStore.settings.first()
+        val preset = settings.aiServicePresets.firstOrNull { it.id == presetId }
+            ?: settings.presetForUsage(AiPresetUsage.AiTool)
         return runCatching {
-            if (settings.shouldUseFake()) {
+            if (preset.shouldUseFake()) {
                 "Fake OK"
             } else {
                 val result = openAiService.completeText(
@@ -98,15 +107,20 @@ class AiRepository(
                         noteTitle = "\u8fde\u63a5\u6d4b\u8bd5",
                         maxLength = 12
                     ),
-                    settings = settings
+                    settings = preset.toUserSettings()
                 )
                 result.text.ifBlank { "OK" }
             }
         }
     }
 
-    private fun UserSettings.shouldUseFake(): Boolean {
-        return apiProvider.equals("Fake", ignoreCase = true) || apiKey.isBlank()
+    private fun AiServicePreset.toUserSettings(): UserSettings {
+        return UserSettings(
+            apiProvider = provider,
+            apiKey = apiKey,
+            apiBaseUrl = baseUrl,
+            apiModel = model
+        )
     }
 
     private fun filterCompletion(text: String, maxLength: Int): String {

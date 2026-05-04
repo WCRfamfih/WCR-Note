@@ -7,6 +7,7 @@ import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
+import com.example.ainote.data.settings.AiServicePreset
 import com.example.ainote.data.settings.NoteSortDirection
 import com.example.ainote.data.settings.NoteSortField
 import com.example.ainote.data.settings.SettingsDataStore
@@ -40,6 +41,27 @@ class SettingsViewModel(
         dataStore.applyProviderPreset(preset)
         _testStatus.value = null
     }
+    fun updateAiServicePreset(preset: AiServicePreset) = launch {
+        val current = settings.value.aiServicePresets
+        dataStore.updateAiServicePresets(current.map { if (it.id == preset.id) preset else it })
+        _testStatus.value = null
+    }
+
+    fun addAiServicePreset(preset: AiServicePreset) = launch {
+        dataStore.updateAiServicePresets(settings.value.aiServicePresets + preset)
+        _testStatus.value = null
+    }
+
+    fun removeAiServicePreset(id: String) = launch {
+        val current = settings.value.aiServicePresets
+        if (current.size <= 1) return@launch
+        dataStore.updateAiServicePresets(current.filterNot { it.id == id })
+        _testStatus.value = null
+    }
+
+    fun updateAutoCompletionPresetId(value: String) = launch { dataStore.updateAutoCompletionPresetId(value) }
+    fun updateManualCompletionPresetId(value: String) = launch { dataStore.updateManualCompletionPresetId(value) }
+    fun updateAiToolPresetId(value: String) = launch { dataStore.updateAiToolPresetId(value) }
 
     fun updateAutoCompletionEnabled(value: Boolean) = launch { dataStore.updateAutoCompletionEnabled(value) }
     fun updatePreferChineseAutoCompletion(value: Boolean) = launch { dataStore.updatePreferChineseAutoCompletion(value) }
@@ -67,10 +89,10 @@ class SettingsViewModel(
     fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
     fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }
 
-    fun testConnection() {
+    fun testConnection(presetId: String? = null) {
         _testStatus.value = "\u6b63\u5728\u6d4b\u8bd5\u8fde\u63a5..."
         viewModelScope.launch {
-            val result = aiRepository.testConnection()
+            val result = aiRepository.testConnection(presetId)
             _testStatus.value = result.fold(
                 onSuccess = { "\u8fde\u63a5\u6210\u529f\uff1a$it" },
                 onFailure = { "\u8fde\u63a5\u5931\u8d25\uff1a${it.message ?: "\u672a\u77e5\u9519\u8bef"}" }
