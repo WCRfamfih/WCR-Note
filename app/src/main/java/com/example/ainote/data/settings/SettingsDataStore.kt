@@ -43,6 +43,7 @@ class SettingsDataStore(private val context: Context) {
             editorTextSizeSp = prefs[Keys.EditorTextSizeSp] ?: 18,
             showMarkdownMarkers = prefs[Keys.ShowMarkdownMarkers] ?: false,
             showCompletionErrorToast = prefs[Keys.ShowCompletionErrorToast] ?: true,
+            knowledgeBaseEnabled = prefs[Keys.KnowledgeBaseEnabled] ?: false,
             documentDirectoryUri = prefs[Keys.DocumentDirectoryUri] ?: "",
             noteSortField = NoteSortField.from(prefs[Keys.NoteSortField] ?: NoteSortField.Time.name),
             noteSortDirection = NoteSortDirection.from(prefs[Keys.NoteSortDirection] ?: NoteSortDirection.Descending.name)
@@ -50,7 +51,15 @@ class SettingsDataStore(private val context: Context) {
     }
 
     val folders: Flow<List<String>> = context.settingsDataStore.data.map { prefs ->
-        prefs[Keys.Folders]
+        readFolderList(prefs[Keys.Folders])
+    }
+
+    val knowledgeFolders: Flow<List<String>> = context.settingsDataStore.data.map { prefs ->
+        readFolderList(prefs[Keys.KnowledgeFolders])
+    }
+
+    private fun readFolderList(raw: String?): List<String> {
+        return raw
             ?.split('\n')
             ?.map { it.trim() }
             ?.filter { it.isNotBlank() }
@@ -99,31 +108,40 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateEditorTextSizeSp(value: Int) = updateInt(Keys.EditorTextSizeSp, value)
     suspend fun updateShowMarkdownMarkers(value: Boolean) = updateBoolean(Keys.ShowMarkdownMarkers, value)
     suspend fun updateShowCompletionErrorToast(value: Boolean) = updateBoolean(Keys.ShowCompletionErrorToast, value)
+    suspend fun updateKnowledgeBaseEnabled(value: Boolean) = updateBoolean(Keys.KnowledgeBaseEnabled, value)
     suspend fun updateDocumentDirectoryUri(value: String) = updateString(Keys.DocumentDirectoryUri, value)
     suspend fun updateNoteSortField(value: NoteSortField) = updateString(Keys.NoteSortField, value.name)
     suspend fun updateNoteSortDirection(value: NoteSortDirection) = updateString(Keys.NoteSortDirection, value.name)
     suspend fun addFolder(value: String) {
-        val folderName = value.trim().replace('\n', ' ')
-        if (folderName.isBlank()) return
-        context.settingsDataStore.edit { prefs ->
-            val current = prefs[Keys.Folders]
-                ?.split('\n')
-                ?.map { it.trim() }
-                ?.filter { it.isNotBlank() }
-                .orEmpty()
-            prefs[Keys.Folders] = (current + folderName).distinct().joinToString("\n")
-        }
+        addFolder(Keys.Folders, value)
+    }
+
+    suspend fun addKnowledgeFolder(value: String) {
+        addFolder(Keys.KnowledgeFolders, value)
     }
 
     suspend fun removeFolder(value: String) {
+        removeFolder(Keys.Folders, value)
+    }
+
+    suspend fun removeKnowledgeFolder(value: String) {
+        removeFolder(Keys.KnowledgeFolders, value)
+    }
+
+    private suspend fun addFolder(key: androidx.datastore.preferences.core.Preferences.Key<String>, value: String) {
+        val folderName = value.trim().replace('\n', ' ')
+        if (folderName.isBlank()) return
+        context.settingsDataStore.edit { prefs ->
+            val current = readFolderList(prefs[key])
+            prefs[key] = (current + folderName).distinct().joinToString("\n")
+        }
+    }
+
+    private suspend fun removeFolder(key: androidx.datastore.preferences.core.Preferences.Key<String>, value: String) {
         val folderName = value.trim()
         context.settingsDataStore.edit { prefs ->
-            val current = prefs[Keys.Folders]
-                ?.split('\n')
-                ?.map { it.trim() }
-                ?.filter { it.isNotBlank() && it != folderName }
-                .orEmpty()
-            prefs[Keys.Folders] = current.distinct().joinToString("\n")
+            val current = readFolderList(prefs[key]).filter { it != folderName }
+            prefs[key] = current.distinct().joinToString("\n")
         }
     }
 
@@ -224,8 +242,10 @@ class SettingsDataStore(private val context: Context) {
         val EditorTextSizeSp = intPreferencesKey("editor_text_size_sp")
         val ShowMarkdownMarkers = booleanPreferencesKey("show_markdown_markers")
         val ShowCompletionErrorToast = booleanPreferencesKey("show_completion_error_toast")
+        val KnowledgeBaseEnabled = booleanPreferencesKey("knowledge_base_enabled")
         val DocumentDirectoryUri = stringPreferencesKey("document_directory_uri")
         val Folders = stringPreferencesKey("folders")
+        val KnowledgeFolders = stringPreferencesKey("knowledge_folders")
         val NoteSortField = stringPreferencesKey("note_sort_field")
         val NoteSortDirection = stringPreferencesKey("note_sort_direction")
     }

@@ -64,6 +64,7 @@ import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.data.settings.UserSettings
+import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.ui.components.AiActionBottomSheet
 import com.example.ainote.ui.components.AiActionResultCard
 import com.example.ainote.ui.components.AiCompletionCard
@@ -81,6 +82,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun NoteEditorScreen(
     noteId: Long,
+    contentType: NoteContentType = NoteContentType.Note,
     noteRepository: NoteRepository,
     aiRepository: AiRepository,
     settingsDataStore: SettingsDataStore,
@@ -88,7 +90,7 @@ fun NoteEditorScreen(
     onBack: () -> Unit
 ) {
     val viewModel: NoteEditorViewModel = viewModel(
-        factory = NoteEditorViewModel.Factory(noteId, noteRepository, aiRepository, settingsDataStore)
+        factory = NoteEditorViewModel.Factory(noteId, contentType, noteRepository, aiRepository, settingsDataStore)
     )
     val state by viewModel.uiState.collectAsState()
     val settings by settingsDataStore.settings.collectAsState(initial = UserSettings())
@@ -110,6 +112,7 @@ fun NoteEditorScreen(
         state.content.selection.collapsed &&
         canShowInlineGhostText(state.content)
     val contentScrollState = rememberScrollState()
+    val isKnowledge = state.contentType == NoteContentType.Knowledge
 
     BackHandler {
         viewModel.saveNow(onBack)
@@ -293,6 +296,7 @@ fun NoteEditorScreen(
                 if (bodyFocused && keyboardVisible) {
                     DocumentAssistToolbar(
                         onAction = viewModel::applyMarkdownFormat,
+                        markdownToolsEnabled = !isKnowledge,
                         modifier = Modifier.padding(bottom = with(density) { keyboardHeightPx.toDp() })
                     )
                 }
@@ -349,7 +353,7 @@ fun NoteEditorScreen(
                 onAcceptGhostText = viewModel::acceptCompletion,
                 onDismissGhostText = viewModel::dismissCompletion,
                 onRetryGhostText = viewModel::retryCompletion,
-                renderMarkdown = !settings.showMarkdownMarkers,
+                renderMarkdown = !settings.showMarkdownMarkers && !isKnowledge,
                 onFocusChanged = { bodyFocused = it }
             )
             Spacer(Modifier.height(8.dp))

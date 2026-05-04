@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 
 class AiRepository(
     private val settingsDataStore: SettingsDataStore,
+    private val noteRepository: NoteRepository? = null,
     private val fakeService: FakeAiCompletionService = FakeAiCompletionService(),
     private val openAiService: OpenAiCompatibleCompletionService = OpenAiCompatibleCompletionService()
 ) {
@@ -30,6 +31,7 @@ class AiRepository(
 
     private suspend fun completeText(request: CompletionRequest, enforceThrottle: Boolean): CompletionResult {
         val settings = settingsDataStore.settings.first()
+        val enrichedRequest = request.withRelatedKnowledge(settings)
         val preset = settings.presetForUsage(
             if (enforceThrottle) AiPresetUsage.AutoCompletion else AiPresetUsage.ManualCompletion
         )
@@ -39,16 +41,17 @@ class AiRepository(
                 preset=${preset.label}
                 provider=${preset.provider}
                 fake=${preset.shouldUseFake()}
-                maxLength=${request.maxLength}
-                language=${request.language}
-                beforeLength=${request.beforeCursor.length}
-                afterLength=${request.afterCursor.length}
+                maxLength=${enrichedRequest.maxLength}
+                language=${enrichedRequest.language}
+                beforeLength=${enrichedRequest.beforeCursor.length}
+                afterLength=${enrichedRequest.afterCursor.length}
+                knowledgeLength=${enrichedRequest.relatedKnowledge.length}
 
                 before:
-                ${request.beforeCursor}
+                ${enrichedRequest.beforeCursor}
 
                 after:
-                ${request.afterCursor}
+                ${enrichedRequest.afterCursor}
             """.trimIndent()
         )
         if (enforceThrottle && !preset.shouldUseFake()) {
@@ -61,11 +64,11 @@ class AiRepository(
             lastAutomaticCompletionAt = now
         }
         val result = if (preset.shouldUseFake()) {
-            fakeService.completeText(request)
+            fakeService.completeText(enrichedRequest)
         } else {
-            openAiService.completeText(request, preset.toUserSettings())
+            openAiService.completeText(enrichedRequest, preset.toUserSettings())
         }
-        val filtered = filterCompletion(result.text, request.maxLength)
+        val filtered = filterCompletion(result.text, enrichedRequest.maxLength)
         AiDebugLogStore.add(
             title = "Completion result",
             detail = """
@@ -83,13 +86,14 @@ class AiRepository(
 
     suspend fun runAction(request: AiActionRequest): AiActionResult {
         val settings = settingsDataStore.settings.first()
+        val enrichedRequest = request.withRelatedKnowledge(settings)
         val preset = settings.presetForUsage(AiPresetUsage.AiTool)
         val result = if (preset.shouldUseFake()) {
-            fakeService.runAction(request)
+            fakeService.runAction(enrichedRequest)
         } else {
-            openAiService.runAction(request, preset.toUserSettings())
+            openAiService.runAction(enrichedRequest, preset.toUserSettings())
         }
-        return result.copy(text = filterCompletion(result.text, request.maxLength))
+        return result.copy(text = filterCompletion(result.text, enrichedRequest.maxLength))
     }
 
     suspend fun testConnection(presetId: String? = null): Result<String> {
@@ -133,8 +137,45 @@ class AiRepository(
             .take(maxLength)
     }
 
+    private suspend fun CompletionRequest.withRelatedKnowledge(settings: UserSettings): CompletionRequest {
+        if (!settings.knowledgeBaseEnabled || relatedKnowledge.isNotBlank()) return this
+        val context = listOfNotNull(noteTitle, beforeCursor, afterCursor).joinToString("\n")
+        return copy(relatedKnowledge = buildRelatedKnowledge(context))
+    }
+
+    private suspend fun AiActionRequest.withRelatedKnowledge(settings: UserSettings): AiActionRequest {
+        if (!settings.knowledgeBaseEnabled || relatedKnowledge.isNotBlank()) return this
+        val context = listOfNotNull(noteTitle, content, selectedText).joinToString("\n")
+        return copy(relatedKnowledge = buildRelatedKnowledge(context))
+    }
+
+    private suspend fun buildRelatedKnowledge(context: String): String {
+        val repository = noteRepository ?: return ""
+        if (context.isBlank()) return ""
+        val matches = repository.getKnowledgeEntries()
+            .filter { it.title.isNotBlank() && context.contains(it.title) }
+            .sortedBy { context.indexOf(it.title) }
+            .take(MAX_KNOWLEDGE_MATCHES)
+        if (matches.isEmpty()) return ""
+        AiDebugLogStore.add(
+            title = "Knowledge context injected",
+            detail = matches.joinToString("\n") { it.title }
+        )
+        return buildString {
+            appendLine("\u76f8\u5173\u77e5\u8bc6\uff1a")
+            matches.forEachIndexed { index, note ->
+                if (index > 0) appendLine()
+                appendLine("\u6807\u9898\uff1a${note.title}")
+                appendLine("\u6b63\u6587\uff1a")
+                appendLine(note.content.take(MAX_KNOWLEDGE_CHARS))
+            }
+        }.trim()
+    }
+
     private companion object {
         const val MIN_REAL_API_COMPLETION_INTERVAL_MS = 1_500L
+        const val MAX_KNOWLEDGE_MATCHES = 5
+        const val MAX_KNOWLEDGE_CHARS = 1_200
     }
 }
 

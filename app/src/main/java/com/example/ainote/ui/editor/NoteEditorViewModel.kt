@@ -13,6 +13,7 @@ import com.example.ainote.data.settings.UserSettings
 import com.example.ainote.domain.model.AiActionRequest
 import com.example.ainote.domain.model.AiActionType
 import com.example.ainote.domain.model.Note
+import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.domain.usecase.BuildCompletionContextUseCase
 import com.example.ainote.domain.usecase.RequestCompletionUseCase
 import com.example.ainote.ui.components.normalizeMarkdownMarkers
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 
 data class NoteEditorUiState(
     val noteId: Long,
+    val contentType: NoteContentType = NoteContentType.Note,
     val createdAt: Long = System.currentTimeMillis(),
     val pinned: Boolean = false,
     val title: String = "",
@@ -41,6 +43,7 @@ data class NoteEditorUiState(
 
 class NoteEditorViewModel(
     private val noteId: Long,
+    private val contentType: NoteContentType,
     private val noteRepository: NoteRepository,
     aiRepository: AiRepository,
     private val settingsDataStore: SettingsDataStore
@@ -49,7 +52,7 @@ class NoteEditorViewModel(
     private val requestCompletion = RequestCompletionUseCase(aiRepository)
     private val aiRepository = aiRepository
 
-    private val _uiState = MutableStateFlow(NoteEditorUiState(noteId = noteId))
+    private val _uiState = MutableStateFlow(NoteEditorUiState(noteId = noteId, contentType = contentType))
     val uiState: StateFlow<NoteEditorUiState> = _uiState
 
     private val undoStack = ArrayDeque<TextFieldValue>()
@@ -163,6 +166,12 @@ class NoteEditorViewModel(
     }
 
     fun applyMarkdownFormat(action: MarkdownFormatAction) {
+        if (
+            contentType == NoteContentType.Knowledge &&
+            action !in setOf(MarkdownFormatAction.ManualCompletion, MarkdownFormatAction.Outdent, MarkdownFormatAction.Indent)
+        ) {
+            return
+        }
         val current = _uiState.value.content
         val next = when (action) {
             MarkdownFormatAction.ManualCompletion -> {
@@ -315,6 +324,7 @@ class NoteEditorViewModel(
     private fun applyNote(note: Note) {
         _uiState.value = NoteEditorUiState(
             noteId = note.id,
+            contentType = note.contentType,
             createdAt = note.createdAt,
             pinned = note.pinned,
             title = note.title,
@@ -645,13 +655,14 @@ class NoteEditorViewModel(
 
     class Factory(
         private val noteId: Long,
+        private val contentType: NoteContentType,
         private val noteRepository: NoteRepository,
         private val aiRepository: AiRepository,
         private val settingsDataStore: SettingsDataStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NoteEditorViewModel(noteId, noteRepository, aiRepository, settingsDataStore) as T
+            return NoteEditorViewModel(noteId, contentType, noteRepository, aiRepository, settingsDataStore) as T
         }
     }
 }

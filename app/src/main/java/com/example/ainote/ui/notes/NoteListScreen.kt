@@ -1,8 +1,8 @@
 package com.example.ainote.ui.notes
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,10 +41,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import com.example.ainote.ui.components.markdownAnnotatedString
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -62,6 +63,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.domain.model.Note
+import com.example.ainote.domain.model.NoteContentType
+import com.example.ainote.ui.components.markdownAnnotatedString
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -71,11 +74,14 @@ import java.util.Locale
 fun NoteListScreen(
     repository: NoteRepository,
     settingsDataStore: SettingsDataStore,
+    contentType: NoteContentType = NoteContentType.Note,
     onOpenNote: (Long) -> Unit,
+    onOpenNotes: () -> Unit = {},
+    onOpenKnowledge: () -> Unit = {},
     onOpenSettings: () -> Unit
 ) {
     val viewModel: NoteListViewModel = viewModel(
-        factory = NoteListViewModel.Factory(repository, settingsDataStore)
+        factory = NoteListViewModel.Factory(repository, settingsDataStore, contentType)
     )
     val uiState by viewModel.uiState.collectAsState()
     val query by viewModel.query.collectAsState()
@@ -83,6 +89,9 @@ fun NoteListScreen(
     var actionNote by remember { mutableStateOf<Note?>(null) }
     var moveNote by remember { mutableStateOf<Note?>(null) }
     var deleteNote by remember { mutableStateOf<Note?>(null) }
+
+    val isKnowledge = contentType == NoteContentType.Knowledge
+    val itemLabel = if (isKnowledge) "\u77e5\u8bc6" else "\u7b14\u8bb0"
 
     if (showFolderManager) {
         FolderManagerScreen(
@@ -99,6 +108,7 @@ fun NoteListScreen(
     actionNote?.let { note ->
         NoteActionSheet(
             note = note,
+            itemLabel = itemLabel,
             onDismiss = { actionNote = null },
             onCopy = {
                 viewModel.copyNote(note.id)
@@ -119,6 +129,7 @@ fun NoteListScreen(
         MoveNoteDialog(
             note = note,
             folders = uiState.folders,
+            itemLabel = itemLabel,
             onDismiss = { moveNote = null },
             onMove = { folderName ->
                 viewModel.moveNoteToFolder(note.id, folderName)
@@ -129,9 +140,9 @@ fun NoteListScreen(
 
     deleteNote?.let { note ->
         ConfirmDialog(
-            title = "删除笔记",
-            text = "确定删除「${note.displayTitle}」吗？",
-            confirmText = "删除",
+            title = "\u5220\u9664$itemLabel",
+            text = "\u786e\u5b9a\u5220\u9664\u300c${note.displayTitle}\u300d\u5417\uff1f",
+            confirmText = "\u5220\u9664",
             onDismiss = { deleteNote = null },
             onConfirm = {
                 viewModel.deleteNote(note.id)
@@ -146,17 +157,33 @@ fun NoteListScreen(
                 title = {},
                 actions = {
                     IconButton(onClick = { showFolderManager = true }) {
-                        Icon(Icons.Default.Folder, contentDescription = "文件夹")
+                        Icon(Icons.Default.Folder, contentDescription = "\u6587\u4ef6\u5939")
                     }
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "设置")
+                        Icon(Icons.Default.Settings, contentDescription = "\u8bbe\u7f6e")
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { viewModel.createNote(onOpenNote) }) {
-                Icon(Icons.Default.Add, contentDescription = "新建笔记")
+                Icon(Icons.Default.Add, contentDescription = null)
+            }
+        },
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    selected = !isKnowledge,
+                    onClick = onOpenNotes,
+                    icon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    label = { Text("\u7b14\u8bb0") }
+                )
+                NavigationBarItem(
+                    selected = isKnowledge,
+                    onClick = onOpenKnowledge,
+                    icon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                    label = { Text("\u77e5\u8bc6\u5e93") }
+                )
             }
         }
     ) { padding ->
@@ -166,14 +193,18 @@ fun NoteListScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            Text("笔记", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = if (isKnowledge) "\u77e5\u8bc6\u5e93" else "\u7b14\u8bb0",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.SemiBold
+            )
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
                 value = query,
                 onValueChange = viewModel::updateQuery,
                 modifier = Modifier.fillMaxWidth(),
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                placeholder = { Text("搜索笔记") },
+                placeholder = { Text(if (isKnowledge) "\u641c\u7d22\u77e5\u8bc6" else "\u641c\u7d22\u7b14\u8bb0") },
                 singleLine = true,
                 shape = RoundedCornerShape(8.dp)
             )
@@ -195,7 +226,11 @@ fun NoteListScreen(
             Spacer(Modifier.height(16.dp))
             if (uiState.notes.isEmpty()) {
                 Text(
-                    text = if (query.isBlank()) "这里还没有笔记。" else "没有找到相关笔记。",
+                    text = if (query.isBlank()) {
+                        if (isKnowledge) "\u8fd9\u91cc\u8fd8\u6ca1\u6709\u77e5\u8bc6\u3002" else "\u8fd9\u91cc\u8fd8\u6ca1\u6709\u7b14\u8bb0\u3002"
+                    } else {
+                        if (isKnowledge) "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u77e5\u8bc6\u3002" else "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u7b14\u8bb0\u3002"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -209,6 +244,7 @@ fun NoteListScreen(
                     items(uiState.notes, key = { it.id }) { note ->
                         NoteCard(
                             note = note,
+                            contentType = contentType,
                             onOpen = { onOpenNote(note.id) },
                             onLongPress = { actionNote = note }
                         )
@@ -236,9 +272,9 @@ private fun FolderManagerScreen(
 
     if (showCreateDialog) {
         FolderNameDialog(
-            title = "新建文件夹",
+            title = "\u65b0\u5efa\u6587\u4ef6\u5939",
             initialName = "",
-            confirmText = "创建",
+            confirmText = "\u521b\u5efa",
             onDismiss = { showCreateDialog = false },
             onConfirm = {
                 onCreateFolder(it)
@@ -249,9 +285,9 @@ private fun FolderManagerScreen(
 
     editingFolder?.let { folder ->
         FolderNameDialog(
-            title = "重命名文件夹",
+            title = "\u91cd\u547d\u540d\u6587\u4ef6\u5939",
             initialName = folder.label,
-            confirmText = "保存",
+            confirmText = "\u4fdd\u5b58",
             onDismiss = { editingFolder = null },
             onConfirm = {
                 onRenameFolder(folder.name.orEmpty(), it)
@@ -262,9 +298,9 @@ private fun FolderManagerScreen(
 
     deletingFolder?.let { folder ->
         ConfirmDialog(
-            title = "删除文件夹",
-            text = "确定删除「${folder.label}」吗？文件夹内笔记会移入未分类。",
-            confirmText = "删除",
+            title = "\u5220\u9664\u6587\u4ef6\u5939",
+            text = "\u786e\u5b9a\u5220\u9664\u300c${folder.label}\u300d\u5417\uff1f\u5185\u5bb9\u4f1a\u79fb\u5165\u672a\u5206\u7c7b\u3002",
+            confirmText = "\u5220\u9664",
             onDismiss = { deletingFolder = null },
             onConfirm = {
                 onDeleteFolder(folder.name.orEmpty())
@@ -276,17 +312,17 @@ private fun FolderManagerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("文件夹") },
+                title = { Text("\u6587\u4ef6\u5939") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "\u8fd4\u56de")
                     }
                 },
                 actions = {
                     val selected = folders.firstOrNull { it.name == activeFolderName && it.canEdit }
                     if (selected != null) {
                         IconButton(onClick = { deletingFolder = selected }) {
-                            Icon(Icons.Default.Delete, contentDescription = "删除文件夹")
+                            Icon(Icons.Default.Delete, contentDescription = "\u5220\u9664\u6587\u4ef6\u5939")
                         }
                     }
                 }
@@ -306,9 +342,7 @@ private fun FolderManagerScreen(
                     folder = folder,
                     selected = folder.name == selectedFolder,
                     active = active,
-                    onClick = {
-                        activeFolderName = folder.name?.takeIf { folder.canEdit }
-                    },
+                    onClick = { activeFolderName = folder.name?.takeIf { folder.canEdit } },
                     onRename = if (active) { { editingFolder = folder } } else null,
                     onDelete = if (active) { { deletingFolder = folder } } else null
                 )
@@ -329,7 +363,7 @@ private fun FolderManagerScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(6.dp))
-                        Text("新建文件夹")
+                        Text("\u65b0\u5efa\u6587\u4ef6\u5939")
                     }
                 }
             }
@@ -376,10 +410,10 @@ private fun FolderRow(
             )
             if (onDelete != null) {
                 IconButton(onClick = onRename ?: {}) {
-                    Icon(Icons.Default.Edit, contentDescription = "重命名文件夹")
+                    Icon(Icons.Default.Edit, contentDescription = "\u91cd\u547d\u540d\u6587\u4ef6\u5939")
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "删除文件夹")
+                    Icon(Icons.Default.Delete, contentDescription = "\u5220\u9664\u6587\u4ef6\u5939")
                 }
             } else if (active) {
                 Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -390,7 +424,13 @@ private fun FolderRow(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NoteCard(note: Note, onOpen: () -> Unit, onLongPress: () -> Unit) {
+private fun NoteCard(
+    note: Note,
+    contentType: NoteContentType,
+    onOpen: () -> Unit,
+    onLongPress: () -> Unit
+) {
+    val isKnowledge = contentType == NoteContentType.Knowledge
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -399,25 +439,45 @@ private fun NoteCard(note: Note, onOpen: () -> Unit, onLongPress: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = note.displayTitle,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    text = note.displayTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isKnowledge) {
+                    Text(
+                        text = "\u25c6",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = markdownAnnotatedString(
-                    note.summary.ifBlank { "空白笔记" },
-                    MaterialTheme.typography.bodyMedium,
-                    MaterialTheme.colorScheme
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 5,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (isKnowledge) {
+                Text(
+                    text = note.summary.ifBlank { "\u7a7a\u767d\u77e5\u8bc6" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis
+                )
+            } else {
+                Text(
+                    text = markdownAnnotatedString(
+                        note.summary.ifBlank { "\u7a7a\u767d\u7b14\u8bb0" },
+                        MaterialTheme.typography.bodyMedium,
+                        MaterialTheme.colorScheme
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Spacer(Modifier.height(14.dp))
             Text(
                 text = formatTime(note.updatedAt),
@@ -432,6 +492,7 @@ private fun NoteCard(note: Note, onOpen: () -> Unit, onLongPress: () -> Unit) {
 @Composable
 private fun NoteActionSheet(
     note: Note,
+    itemLabel: String,
     onDismiss: () -> Unit,
     onCopy: () -> Unit,
     onMove: () -> Unit,
@@ -443,23 +504,27 @@ private fun NoteActionSheet(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
         )
-        ActionItem(Icons.Default.FileCopy, "复制", onCopy)
-        ActionItem(Icons.AutoMirrored.Filled.DriveFileMove, "移动到文件夹", onMove)
-        ActionItem(Icons.Default.Delete, "删除", onDelete)
+        ActionItem(Icons.Default.FileCopy, "\u590d\u5236", onCopy)
+        ActionItem(Icons.AutoMirrored.Filled.DriveFileMove, "\u79fb\u52a8\u5230\u6587\u4ef6\u5939", onMove)
+        ActionItem(Icons.Default.Delete, "\u5220\u9664$itemLabel", onDelete)
         TextButton(
             onClick = onDismiss,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Text("取消")
+            Text("\u53d6\u6d88")
         }
         Spacer(Modifier.height(12.dp))
     }
 }
 
 @Composable
-private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: () -> Unit) {
+private fun ActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    onClick: () -> Unit
+) {
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
         leadingContent = { Icon(icon, contentDescription = null) },
@@ -471,15 +536,16 @@ private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, te
 private fun MoveNoteDialog(
     note: Note,
     folders: List<FolderSummary>,
+    itemLabel: String,
     onDismiss: () -> Unit,
     onMove: (String?) -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("移动笔记") },
+        title = { Text("\u79fb\u52a8$itemLabel") },
         text = {
             Column {
-                Text("选择「${note.displayTitle}」的新文件夹")
+                Text("\u9009\u62e9\u300c${note.displayTitle}\u300d\u7684\u65b0\u6587\u4ef6\u5939")
                 Spacer(Modifier.height(12.dp))
                 folders.filter { it.name != null }.forEach { folder ->
                     ListItem(
@@ -493,7 +559,7 @@ private fun MoveNoteDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text("\u53d6\u6d88")
             }
         }
     )
@@ -516,7 +582,7 @@ private fun FolderNameDialog(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                placeholder = { Text("文件夹名称") }
+                placeholder = { Text("\u6587\u4ef6\u5939\u540d\u79f0") }
             )
         },
         confirmButton = {
@@ -526,7 +592,7 @@ private fun FolderNameDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text("\u53d6\u6d88")
             }
         }
     )
@@ -551,12 +617,12 @@ private fun ConfirmDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text("\u53d6\u6d88")
             }
         }
     )
 }
 
-private fun formatTime(timeMillis: Long): String {
-    return SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timeMillis))
+private fun formatTime(timestamp: Long): String {
+    return SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
 }

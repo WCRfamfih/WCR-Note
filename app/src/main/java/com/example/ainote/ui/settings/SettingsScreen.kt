@@ -67,6 +67,7 @@ fun SettingsScreen(
     aiRepository: AiRepository,
     noteRepository: NoteRepository,
     onOpenAiSettings: () -> Unit,
+    onOpenKnowledgeSettings: () -> Unit,
     onOpenAiDebugLog: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -105,6 +106,17 @@ fun SettingsScreen(
                     modifier = Modifier.clickable(onClick = onOpenAiSettings),
                     headlineContent = { Text("AI \u8bbe\u7f6e") },
                     supportingContent = { Text("\u670d\u52a1\u5546\u3001API Key\u3001\u81ea\u52a8\u8865\u5168\u548c\u9690\u79c1\u4e0a\u4e0b\u6587") },
+                    trailingContent = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    }
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Card(modifier = Modifier.fillMaxWidth()) {
+                ListItem(
+                    modifier = Modifier.clickable(onClick = onOpenKnowledgeSettings),
+                    headlineContent = { Text("\u77e5\u8bc6\u5e93\u8bbe\u7f6e") },
+                    supportingContent = { Text("\u63a7\u5236 AI \u662f\u5426\u5f15\u7528\u77e5\u8bc6\u5e93\u5185\u5bb9") },
                     trailingContent = {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                     }
@@ -223,6 +235,44 @@ fun SettingsScreen(
 
 private fun displayDirectoryUri(uri: String): String {
     return Uri.decode(uri).substringAfterLast('/').ifBlank { uri }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun KnowledgeSettingsScreen(
+    dataStore: SettingsDataStore,
+    onBack: () -> Unit
+) {
+    val viewModel: SettingsViewModel = viewModel(
+        factory = SettingsViewModel.Factory(dataStore, AiRepository(dataStore))
+    )
+    val settings by viewModel.settings.collectAsState()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("\u77e5\u8bc6\u5e93\u8bbe\u7f6e") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "\u8fd4\u56de")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            SettingSwitch(
+                title = "\u542f\u7528\u77e5\u8bc6\u5e93 AI \u5f15\u7528",
+                description = "\u5f00\u542f\u540e\uff0c\u5f53 AI \u4e0a\u4e0b\u6587\u4e2d\u51fa\u73b0\u77e5\u8bc6\u6807\u9898\u65f6\uff0c\u4f1a\u628a\u5bf9\u5e94\u77e5\u8bc6\u6b63\u6587\u4e00\u8d77\u53d1\u9001\u7ed9 AI\u3002",
+                checked = settings.knowledgeBaseEnabled,
+                onCheckedChange = viewModel::updateKnowledgeBaseEnabled
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

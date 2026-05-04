@@ -12,6 +12,7 @@ data class NoteEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val folderName: String = "",
+    val contentType: String = "note",
     val pinned: Boolean = false,
     val deleted: Boolean = false
 )

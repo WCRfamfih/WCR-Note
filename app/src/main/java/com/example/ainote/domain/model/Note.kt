@@ -7,11 +7,12 @@ data class Note(
     val createdAt: Long,
     val updatedAt: Long,
     val folderName: String = "",
+    val contentType: NoteContentType = NoteContentType.Note,
     val pinned: Boolean = false
 ) {
     val displayTitle: String
         get() = title.ifBlank {
-            content.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(24) ?: "未命名笔记"
+            content.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(24) ?: "\u672a\u547d\u540d"
         }
 
     val summary: String

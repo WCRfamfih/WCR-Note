@@ -77,6 +77,7 @@ class SettingsViewModel(
     fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
     fun updateShowMarkdownMarkers(value: Boolean) = launch { dataStore.updateShowMarkdownMarkers(value) }
     fun updateShowCompletionErrorToast(value: Boolean) = launch { dataStore.updateShowCompletionErrorToast(value) }
+    fun updateKnowledgeBaseEnabled(value: Boolean) = launch { dataStore.updateKnowledgeBaseEnabled(value) }
     fun updateDocumentDirectoryUri(value: String) = launch {
         dataStore.updateDocumentDirectoryUri(value)
         if (value.isBlank()) {

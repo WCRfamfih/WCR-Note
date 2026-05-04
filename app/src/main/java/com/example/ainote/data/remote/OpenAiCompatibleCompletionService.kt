@@ -175,7 +175,7 @@ class OpenAiCompatibleCompletionService(
     private fun parseChatCompletion(body: String): String {
         val json = runCatching { JSONObject(body) }.getOrElse {
             throw AiApiException(
-                "API 返回的不是 JSON，请检查 API Base URL 是否是完整的 chat/completions 接口。返回内容：${body.previewForError()}"
+                "API 杩斿洖鐨勪笉鏄?JSON锛岃妫€鏌?API Base URL 鏄惁鏄畬鏁寸殑 chat/completions 鎺ュ彛銆傝繑鍥炲唴瀹癸細${body.previewForError()}"
             )
         }
         val choices = json.optJSONArray("choices") ?: return ""
@@ -241,6 +241,8 @@ class OpenAiCompatibleCompletionService(
             Text after cursor:
             ${request.afterCursor}
 
+            ${request.relatedKnowledge.takeIf { it.isNotBlank() } ?: ""}
+
             Completion:
         """.trimIndent()
     }
@@ -260,11 +262,12 @@ class OpenAiCompatibleCompletionService(
     private fun buildActionPrompt(request: AiActionRequest): String {
         val target = request.selectedText?.takeIf { it.isNotBlank() } ?: request.content
         return """
-            笔记标题：
+            Note title:
             ${request.noteTitle.orEmpty()}
 
-            需要处理的内容：
+            Content to process:
             $target
+
+            ${request.relatedKnowledge.takeIf { it.isNotBlank() } ?: ""}
         """.trimIndent()
-    }
-}
+    }}

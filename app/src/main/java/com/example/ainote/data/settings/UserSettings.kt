@@ -40,6 +40,7 @@ data class UserSettings(
     val editorTextSizeSp: Int = 18,
     val showMarkdownMarkers: Boolean = false,
     val showCompletionErrorToast: Boolean = true,
+    val knowledgeBaseEnabled: Boolean = false,
     val documentDirectoryUri: String = "",
     val noteSortField: NoteSortField = NoteSortField.Time,
     val noteSortDirection: NoteSortDirection = NoteSortDirection.Descending

@@ -13,5 +13,5 @@ class AppContainer(context: Context) {
     val settingsDataStore = SettingsDataStore(context)
     private val documentBackupRepository = DocumentBackupRepository(context, settingsDataStore)
     val noteRepository = NoteRepository(database.noteDao(), documentBackupRepository)
-    val aiRepository = AiRepository(settingsDataStore)
+    val aiRepository = AiRepository(settingsDataStore, noteRepository)
 }

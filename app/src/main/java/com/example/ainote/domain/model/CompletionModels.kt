@@ -10,7 +10,8 @@ data class CompletionRequest(
     val noteTitle: String?,
     val writingMode: WritingMode = WritingMode.Normal,
     val maxLength: Int,
-    val language: String = "zh"
+    val language: String = "zh",
+    val relatedKnowledge: String = ""
 )
 
 data class CompletionResult(
@@ -36,7 +37,8 @@ data class AiActionRequest(
     val content: String,
     val selectedText: String? = null,
     val maxLength: Int,
-    val language: String = "zh"
+    val language: String = "zh",
+    val relatedKnowledge: String = ""
 )
 
 data class AiActionResult(

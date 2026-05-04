@@ -24,6 +24,7 @@ import com.example.ainote.ui.editor.MarkdownFormatAction
 @Composable
 fun DocumentAssistToolbar(
     onAction: (MarkdownFormatAction) -> Unit,
+    markdownToolsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -40,13 +41,15 @@ fun DocumentAssistToolbar(
             AiCompletionButton { onAction(MarkdownFormatAction.ManualCompletion) }
             ToolButton("<") { onAction(MarkdownFormatAction.Outdent) }
             ToolButton(">") { onAction(MarkdownFormatAction.Indent) }
-            ToolButton("H1") { onAction(MarkdownFormatAction.Heading1) }
-            ToolButton("H2") { onAction(MarkdownFormatAction.Heading2) }
-            ToolButton("H3") { onAction(MarkdownFormatAction.Heading3) }
-            ToolButton("B", fontWeight = FontWeight.Bold) { onAction(MarkdownFormatAction.Bold) }
-            ToolButton("I", fontStyle = FontStyle.Italic) { onAction(MarkdownFormatAction.Italic) }
-            ToolButton("S", textDecoration = TextDecoration.LineThrough) { onAction(MarkdownFormatAction.Strike) }
-            ToolButton("U", textDecoration = TextDecoration.Underline) { onAction(MarkdownFormatAction.Underline) }
+            if (markdownToolsEnabled) {
+                ToolButton("H1") { onAction(MarkdownFormatAction.Heading1) }
+                ToolButton("H2") { onAction(MarkdownFormatAction.Heading2) }
+                ToolButton("H3") { onAction(MarkdownFormatAction.Heading3) }
+                ToolButton("B", fontWeight = FontWeight.Bold) { onAction(MarkdownFormatAction.Bold) }
+                ToolButton("I", fontStyle = FontStyle.Italic) { onAction(MarkdownFormatAction.Italic) }
+                ToolButton("S", textDecoration = TextDecoration.LineThrough) { onAction(MarkdownFormatAction.Strike) }
+                ToolButton("U", textDecoration = TextDecoration.Underline) { onAction(MarkdownFormatAction.Underline) }
+            }
         }
     }
 }
