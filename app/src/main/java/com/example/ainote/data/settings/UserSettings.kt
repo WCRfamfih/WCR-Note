@@ -37,6 +37,9 @@ object EditableSettingKeys {
     const val ShowCompletionErrorToast = "show_completion_error_toast"
     const val KnowledgeBaseEnabled = "knowledge_base_enabled"
     const val KnowledgeSendLimit = "knowledge_send_limit"
+    const val ExperimentalMarathonEnabled = "experimental_marathon_enabled"
+    const val MarathonDurationMinutes = "marathon_duration_minutes"
+    const val MarathonDisableAi = "marathon_disable_ai"
 }
 
 enum class EditorFontPreset(val label: String) {
@@ -87,6 +90,9 @@ data class UserSettings(
     val showCompletionErrorToast: Boolean = true,
     val knowledgeBaseEnabled: Boolean = false,
     val knowledgeSendLimit: Int = 5,
+    val experimentalMarathonEnabled: Boolean = false,
+    val marathonDurationMinutes: Float = 25f,
+    val marathonDisableAi: Boolean = false,
     val recentEditableSettingKeys: List<String> = emptyList(),
     val documentDirectoryUri: String = "",
     val noteSortField: NoteSortField = NoteSortField.Time,

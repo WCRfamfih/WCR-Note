@@ -2,8 +2,10 @@ package com.example.ainote.ui.editor
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.example.ainote.data.debug.AiDebugLogStore
 import com.example.ainote.data.repository.AiRepository
@@ -23,9 +25,9 @@ import com.example.ainote.ui.components.normalizeMarkdownMarkers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -46,7 +48,14 @@ data class NoteEditorUiState(
     val showKnowledgeButton: Boolean = contentType == NoteContentType.Note,
     val knowledgeScopeSummary: KnowledgeScopeSummary = KnowledgeScopeSummary(),
     val isGlobalKnowledge: Boolean = false,
-    val knowledgeOverflowPrompt: KnowledgeOverflowPrompt? = null
+    val knowledgeOverflowPrompt: KnowledgeOverflowPrompt? = null,
+    val showMarathonButton: Boolean = false,
+    val marathonActive: Boolean = false,
+    val marathonProgress: Float = 0f,
+    val marathonRemainingMs: Long = 0L,
+    val hideUndoRedo: Boolean = false,
+    val hideAiButton: Boolean = false,
+    val disableManualAiCompletion: Boolean = false
 )
 
 data class KnowledgeOverflowPrompt(
@@ -59,7 +68,8 @@ class NoteEditorViewModel(
     private val contentType: NoteContentType,
     private val noteRepository: NoteRepository,
     aiRepository: AiRepository,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val buildCompletionContext = BuildCompletionContextUseCase()
     private val requestCompletion = RequestCompletionUseCase(aiRepository)
@@ -72,8 +82,10 @@ class NoteEditorViewModel(
     private val redoStack = ArrayDeque<TextFieldValue>()
     private var saveJob: Job? = null
     private var completionJob: Job? = null
+    private var marathonTickerJob: Job? = null
     private var initialized = false
     private var showMarkdownMarkers = false
+    private var settingsSnapshot = UserSettings()
     private var pendingKnowledgeAction: PendingKnowledgeAction? = null
 
     init {
@@ -87,7 +99,12 @@ class NoteEditorViewModel(
         }
         viewModelScope.launch {
             settingsDataStore.settings.collect { settings ->
+                settingsSnapshot = settings
                 showMarkdownMarkers = settings.showMarkdownMarkers
+                if (!settings.experimentalMarathonEnabled && savedMarathonActive()) {
+                    clearMarathonState()
+                }
+                syncMarathonUi()
             }
         }
         if (contentType == NoteContentType.Note) {
@@ -97,6 +114,7 @@ class NoteEditorViewModel(
                 }
             }
         }
+        restoreMarathonTickerIfNeeded()
     }
 
     fun updateTitle(value: String) {
@@ -112,23 +130,53 @@ class NoteEditorViewModel(
         scheduleSave()
     }
 
+    fun startMarathon() {
+        if (!settingsSnapshot.experimentalMarathonEnabled || savedMarathonActive()) return
+        discardCompletionPreview()
+        val baseContent = _uiState.value.content.text
+        val durationMs = (settingsSnapshot.marathonDurationMinutes * 60_000f).toLong().coerceAtLeast(1_000L)
+        savedStateHandle[KEY_MARATHON_ACTIVE] = true
+        savedStateHandle[KEY_MARATHON_END_AT] = System.currentTimeMillis() + durationMs
+        savedStateHandle[KEY_MARATHON_DURATION_MS] = durationMs
+        savedStateHandle[KEY_MARATHON_LOCKED_PREFIX] = baseContent
+        if (settingsSnapshot.marathonDisableAi) {
+            completionJob?.cancel()
+            _uiState.update {
+                it.copy(
+                    completion = CompletionUiState(),
+                    manualAi = ManualAiUiState()
+                )
+            }
+        }
+        startMarathonTicker()
+        syncMarathonUi()
+    }
+
+    fun stopMarathon() {
+        clearMarathonState()
+        syncMarathonUi()
+    }
+
     fun updateContent(value: TextFieldValue) {
         val currentState = _uiState.value
         val adjustedValue = removeCompletionPreviewFromValue(value)
         val normalizedValue = if (showMarkdownMarkers) adjustedValue else adjustedValue.normalizeMarkdownSelection()
         val current = currentState.content.withoutPreview(currentState.completion.previewRange)
-        val contentChanged = current.text != normalizedValue.text
-        if (current != normalizedValue) {
+        val effectiveValue = if (currentState.marathonActive) {
+            enforceMarathonEdit(current, normalizedValue)
+        } else {
+            normalizedValue
+        }
+        val contentChanged = current.text != effectiveValue.text
+        if (current != effectiveValue) {
             undoStack.addLast(current)
-            if (undoStack.size > 100) {
-                undoStack.removeFirst()
-            }
+            if (undoStack.size > 100) undoStack.removeFirst()
             redoStack.clear()
         }
         _uiState.update {
             it.copy(
-                content = normalizedValue,
-                wordCount = normalizedValue.text.length,
+                content = effectiveValue,
+                wordCount = effectiveValue.text.length,
                 completion = CompletionUiState(),
                 manualAi = it.manualAi.copy(result = null, statusMessage = null, errorMessage = null),
                 canUndo = undoStack.isNotEmpty(),
@@ -140,6 +188,7 @@ class NoteEditorViewModel(
     }
 
     fun undo() {
+        if (_uiState.value.marathonActive) return
         discardCompletionPreview()
         val current = _uiState.value.content
         val previous = undoStack.removeLastOrNull() ?: return
@@ -157,6 +206,7 @@ class NoteEditorViewModel(
     }
 
     fun redo() {
+        if (_uiState.value.marathonActive) return
         discardCompletionPreview()
         val current = _uiState.value.content
         val next = redoStack.removeLastOrNull() ?: return
@@ -178,9 +228,7 @@ class NoteEditorViewModel(
         val range = state.completion.previewRange ?: return
         val previous = state.content.withoutPreview(range)
         undoStack.addLast(previous)
-        if (undoStack.size > 100) {
-            undoStack.removeFirst()
-        }
+        if (undoStack.size > 100) undoStack.removeFirst()
         redoStack.clear()
         _uiState.update {
             it.copy(
@@ -200,16 +248,19 @@ class NoteEditorViewModel(
     }
 
     fun requestCompletionNow() {
+        if (_uiState.value.disableManualAiCompletion) return
         scheduleCompletion(force = true)
     }
 
     fun retryCompletion() {
+        if (_uiState.value.disableManualAiCompletion) return
         dismissCompletion()
         scheduleCompletion(force = true)
     }
 
     fun applyMarkdownFormat(action: MarkdownFormatAction) {
         discardCompletionPreview()
+        if (action == MarkdownFormatAction.ManualCompletion && _uiState.value.disableManualAiCompletion) return
         if (
             contentType == NoteContentType.Knowledge &&
             action !in setOf(MarkdownFormatAction.ManualCompletion, MarkdownFormatAction.Outdent, MarkdownFormatAction.Indent)
@@ -236,6 +287,7 @@ class NoteEditorViewModel(
     }
 
     fun runManualAction(actionType: AiActionType) {
+        if (_uiState.value.hideAiButton) return
         discardCompletionPreview()
         completionJob?.cancel()
         viewModelScope.launch {
@@ -315,6 +367,7 @@ class NoteEditorViewModel(
                     )
                     executeCompletionRequest(resolvedRequest, pending.force)
                 }
+
                 is PendingKnowledgeAction.Manual -> {
                     val resolvedRequest = applyKnowledgeContext(
                         request = pending.request,
@@ -415,7 +468,9 @@ class NoteEditorViewModel(
     }
 
     fun dismissManualAiStatus() {
-        _uiState.update { it.copy(manualAi = it.manualAi.copy(statusMessage = null, errorMessage = null, loading = false)) }
+        _uiState.update {
+            it.copy(manualAi = it.manualAi.copy(statusMessage = null, errorMessage = null, loading = false))
+        }
     }
 
     fun saveNow(onSaved: () -> Unit = {}) {
@@ -438,8 +493,11 @@ class NoteEditorViewModel(
             isLoaded = true,
             showKnowledgeButton = note.contentType == NoteContentType.Note,
             knowledgeScopeSummary = _uiState.value.knowledgeScopeSummary,
-            isGlobalKnowledge = note.isGlobalKnowledge
+            isGlobalKnowledge = note.isGlobalKnowledge,
+            showMarathonButton = settingsSnapshot.experimentalMarathonEnabled,
+            marathonActive = savedMarathonActive()
         )
+        syncMarathonUi()
     }
 
     private fun scheduleSave() {
@@ -598,13 +656,14 @@ class NoteEditorViewModel(
 
     private fun canRequestCompletion(settings: UserSettings, force: Boolean, contentChanged: Boolean): Boolean {
         val state = _uiState.value
+        if (state.marathonActive && settings.marathonDisableAi) return false
         val cursor = state.content.selection.start
         if (force) {
             return state.content.selection.collapsed &&
                 cursor > 0 &&
                 state.content.text.take(cursor).isNotBlank()
         }
-        return (settings.autoCompletionEnabled || force) &&
+        return settings.autoCompletionEnabled &&
             (!settings.autoCompleteOnlyOnContentChange || contentChanged) &&
             state.content.selection.collapsed &&
             cursor > 0 &&
@@ -630,6 +689,85 @@ class NoteEditorViewModel(
     private fun removeCompletionPreviewFromValue(value: TextFieldValue): TextFieldValue {
         val previewRange = _uiState.value.completion.previewRange ?: return value
         return value.withoutPreview(previewRange)
+    }
+
+    private fun enforceMarathonEdit(
+        current: TextFieldValue,
+        proposed: TextFieldValue
+    ): TextFieldValue {
+        if (proposed.text == current.text) return proposed
+        val lockedPrefix = savedStateHandle.get<String>(KEY_MARATHON_LOCKED_PREFIX).orEmpty()
+        val isValid = proposed.text.length >= lockedPrefix.length && proposed.text.startsWith(lockedPrefix)
+        return if (isValid) {
+            proposed
+        } else {
+            current.copy(
+                selection = TextRange(
+                    start = proposed.selection.start.coerceIn(0, current.text.length),
+                    end = proposed.selection.end.coerceIn(0, current.text.length)
+                )
+            )
+        }
+    }
+
+    private fun syncMarathonUi() {
+        val active = savedMarathonActive()
+        val remainingMs = if (active) {
+            (savedStateHandle.get<Long>(KEY_MARATHON_END_AT) ?: 0L) - System.currentTimeMillis()
+        } else {
+            0L
+        }
+        if (active && remainingMs <= 0L) {
+            clearMarathonState()
+            syncMarathonUi()
+            return
+        }
+        val totalDurationMs = savedStateHandle.get<Long>(KEY_MARATHON_DURATION_MS) ?: 0L
+        val progress = if (active && totalDurationMs > 0L) {
+            ((totalDurationMs - remainingMs).toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        _uiState.update {
+            it.copy(
+                showMarathonButton = settingsSnapshot.experimentalMarathonEnabled,
+                marathonActive = active,
+                marathonRemainingMs = remainingMs.coerceAtLeast(0L),
+                marathonProgress = progress,
+                hideUndoRedo = active,
+                hideAiButton = active && settingsSnapshot.marathonDisableAi,
+                disableManualAiCompletion = active && settingsSnapshot.marathonDisableAi
+            )
+        }
+    }
+
+    private fun restoreMarathonTickerIfNeeded() {
+        if (!savedMarathonActive()) return
+        startMarathonTicker()
+    }
+
+    private fun startMarathonTicker() {
+        marathonTickerJob?.cancel()
+        marathonTickerJob = viewModelScope.launch {
+            while (savedMarathonActive()) {
+                syncMarathonUi()
+                delay(500)
+            }
+            syncMarathonUi()
+        }
+    }
+
+    private fun clearMarathonState() {
+        marathonTickerJob?.cancel()
+        marathonTickerJob = null
+        savedStateHandle[KEY_MARATHON_ACTIVE] = false
+        savedStateHandle[KEY_MARATHON_END_AT] = 0L
+        savedStateHandle[KEY_MARATHON_DURATION_MS] = 0L
+        savedStateHandle[KEY_MARATHON_LOCKED_PREFIX] = ""
+    }
+
+    private fun savedMarathonActive(): Boolean {
+        return savedStateHandle.get<Boolean>(KEY_MARATHON_ACTIVE) == true
     }
 
     private fun TextFieldValue.withoutPreview(previewRange: TextRange?): TextFieldValue {
@@ -882,6 +1020,13 @@ class NoteEditorViewModel(
         return error.message?.takeIf(String::isNotBlank) ?: "请稍后重试。"
     }
 
+    override fun onCleared() {
+        marathonTickerJob?.cancel()
+        saveJob?.cancel()
+        completionJob?.cancel()
+        super.onCleared()
+    }
+
     private sealed interface PendingKnowledgeAction {
         data class Completion(
             val request: CompletionRequest,
@@ -904,8 +1049,25 @@ class NoteEditorViewModel(
         private val settingsDataStore: SettingsDataStore
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NoteEditorViewModel(noteId, contentType, noteRepository, aiRepository, settingsDataStore) as T
+        override fun <T : ViewModel> create(
+            modelClass: Class<T>,
+            extras: androidx.lifecycle.viewmodel.CreationExtras
+        ): T {
+            return NoteEditorViewModel(
+                noteId = noteId,
+                contentType = contentType,
+                noteRepository = noteRepository,
+                aiRepository = aiRepository,
+                settingsDataStore = settingsDataStore,
+                savedStateHandle = extras.createSavedStateHandle()
+            ) as T
         }
+    }
+
+    private companion object {
+        const val KEY_MARATHON_ACTIVE = "marathon_active"
+        const val KEY_MARATHON_END_AT = "marathon_end_at"
+        const val KEY_MARATHON_DURATION_MS = "marathon_duration_ms"
+        const val KEY_MARATHON_LOCKED_PREFIX = "marathon_locked_prefix"
     }
 }

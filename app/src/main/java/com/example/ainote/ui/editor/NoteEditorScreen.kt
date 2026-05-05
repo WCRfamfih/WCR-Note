@@ -29,8 +29,10 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -174,7 +176,7 @@ fun NoteEditorScreen(
     if (showExtractionContextPrompt) {
         AlertDialog(
             onDismissRequest = { showExtractionContextPrompt = false },
-            title = { Text("发送全文提示") },
+            title = { Text("发送整篇内容？") },
             text = { Text("检测到未开启“发送整篇上下文”，是否临时发送全部内容？") },
             confirmButton = {
                 TextButton(
@@ -418,7 +420,7 @@ fun NoteEditorScreen(
                         }
                     },
                     actions = {
-                        if (isEditingText) {
+                        if (isEditingText && !state.hideUndoRedo) {
                             IconButton(onClick = viewModel::undo, enabled = state.canUndo) {
                                 Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销")
                             }
@@ -426,11 +428,25 @@ fun NoteEditorScreen(
                                 Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做")
                             }
                         }
-                        IconButton(onClick = {
-                            viewModel.dismissCompletion()
-                            showAiMenu = true
-                        }) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作")
+                        if (state.showMarathonButton) {
+                            IconButton(
+                                onClick = {
+                                    if (state.marathonActive) viewModel.stopMarathon() else viewModel.startMarathon()
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (state.marathonActive) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                    contentDescription = if (state.marathonActive) "结束马拉松" else "开始马拉松"
+                                )
+                            }
+                        }
+                        if (!state.hideAiButton) {
+                            IconButton(onClick = {
+                                viewModel.dismissCompletion()
+                                showAiMenu = true
+                            }) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作")
+                            }
                         }
                         if (!isEditingText) {
                             IconButton(onClick = {
@@ -471,6 +487,16 @@ fun NoteEditorScreen(
         },
         bottomBar = {
             Column(modifier = Modifier.fillMaxWidth()) {
+                if (state.marathonActive) {
+                    LinearProgressIndicator(
+                        progress = { state.marathonProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    )
+                }
                 if (settings.editorPaginationEnabled) {
                     Row(
                         modifier = Modifier
@@ -510,6 +536,7 @@ fun NoteEditorScreen(
                         onAcceptCompletion = viewModel::acceptCompletion,
                         onRetryCompletion = viewModel::retryCompletion,
                         onDismissCompletion = viewModel::dismissCompletion,
+                        aiCompletionEnabled = !state.disableManualAiCompletion,
                         markdownToolsEnabled = !isKnowledge,
                         modifier = Modifier.padding(bottom = with(density) { keyboardHeightPx.toDp() })
                     )

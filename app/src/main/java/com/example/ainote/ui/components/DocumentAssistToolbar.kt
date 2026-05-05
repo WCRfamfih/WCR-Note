@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,6 +28,7 @@ fun DocumentAssistToolbar(
     onAcceptCompletion: () -> Unit = {},
     onRetryCompletion: () -> Unit = {},
     onDismissCompletion: () -> Unit = {},
+    aiCompletionEnabled: Boolean = true,
     markdownToolsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -46,7 +48,10 @@ fun DocumentAssistToolbar(
                 ToolButton("重试", onClick = onRetryCompletion)
                 ToolButton("取消", onClick = onDismissCompletion)
             } else {
-                AiCompletionButton { onAction(MarkdownFormatAction.ManualCompletion) }
+                AiCompletionButton(
+                    enabled = aiCompletionEnabled,
+                    onClick = { onAction(MarkdownFormatAction.ManualCompletion) }
+                )
                 ToolButton("<") { onAction(MarkdownFormatAction.Outdent) }
                 ToolButton(">") { onAction(MarkdownFormatAction.Indent) }
                 if (markdownToolsEnabled) {
@@ -65,15 +70,17 @@ fun DocumentAssistToolbar(
 
 @Composable
 private fun AiCompletionButton(
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
     TextButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = Modifier
             .height(44.dp)
             .padding(horizontal = 2.dp)
     ) {
-        androidx.compose.material3.Icon(
+        Icon(
             imageVector = Icons.Default.AutoAwesome,
             contentDescription = "手动 AI 补全"
         )

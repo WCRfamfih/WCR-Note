@@ -54,6 +54,9 @@ class SettingsDataStore(private val context: Context) {
             showCompletionErrorToast = prefs[Keys.ShowCompletionErrorToast] ?: true,
             knowledgeBaseEnabled = prefs[Keys.KnowledgeBaseEnabled] ?: false,
             knowledgeSendLimit = prefs[Keys.KnowledgeSendLimit] ?: 5,
+            experimentalMarathonEnabled = prefs[Keys.ExperimentalMarathonEnabled] ?: false,
+            marathonDurationMinutes = prefs[Keys.MarathonDurationMinutes] ?: 25f,
+            marathonDisableAi = prefs[Keys.MarathonDisableAi] ?: false,
             recentEditableSettingKeys = readRecentEditableSettingKeys(prefs[Keys.RecentEditableSettings]),
             documentDirectoryUri = prefs[Keys.DocumentDirectoryUri] ?: "",
             noteSortField = NoteSortField.from(prefs[Keys.NoteSortField] ?: NoteSortField.Time.name),
@@ -153,6 +156,9 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateShowCompletionErrorToast(value: Boolean) = updateTrackedBoolean(Keys.ShowCompletionErrorToast, value, EditableSettingKeys.ShowCompletionErrorToast)
     suspend fun updateKnowledgeBaseEnabled(value: Boolean) = updateTrackedBoolean(Keys.KnowledgeBaseEnabled, value, EditableSettingKeys.KnowledgeBaseEnabled)
     suspend fun updateKnowledgeSendLimit(value: Int) = updateTrackedInt(Keys.KnowledgeSendLimit, value.coerceAtLeast(1), EditableSettingKeys.KnowledgeSendLimit)
+    suspend fun updateExperimentalMarathonEnabled(value: Boolean) = updateTrackedBoolean(Keys.ExperimentalMarathonEnabled, value, EditableSettingKeys.ExperimentalMarathonEnabled)
+    suspend fun updateMarathonDurationMinutes(value: Float) = updateTrackedFloat(Keys.MarathonDurationMinutes, value.coerceAtLeast(0.1f), EditableSettingKeys.MarathonDurationMinutes)
+    suspend fun updateMarathonDisableAi(value: Boolean) = updateTrackedBoolean(Keys.MarathonDisableAi, value, EditableSettingKeys.MarathonDisableAi)
     suspend fun updateDocumentDirectoryUri(value: String) = updateString(Keys.DocumentDirectoryUri, value)
     suspend fun updateNoteSortField(value: NoteSortField) = updateString(Keys.NoteSortField, value.name)
     suspend fun updateNoteSortDirection(value: NoteSortDirection) = updateString(Keys.NoteSortDirection, value.name)
@@ -345,6 +351,9 @@ class SettingsDataStore(private val context: Context) {
         val ShowCompletionErrorToast = booleanPreferencesKey("show_completion_error_toast")
         val KnowledgeBaseEnabled = booleanPreferencesKey("knowledge_base_enabled")
         val KnowledgeSendLimit = intPreferencesKey("knowledge_send_limit")
+        val ExperimentalMarathonEnabled = booleanPreferencesKey("experimental_marathon_enabled")
+        val MarathonDurationMinutes = floatPreferencesKey("marathon_duration_minutes")
+        val MarathonDisableAi = booleanPreferencesKey("marathon_disable_ai")
         val RecentEditableSettings = stringPreferencesKey("recent_editable_settings")
         val DocumentDirectoryUri = stringPreferencesKey("document_directory_uri")
         val Folders = stringPreferencesKey("folders")

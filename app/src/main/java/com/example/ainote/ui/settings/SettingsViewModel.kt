@@ -91,6 +91,9 @@ class SettingsViewModel(
     fun updateShowCompletionErrorToast(value: Boolean) = launch { dataStore.updateShowCompletionErrorToast(value) }
     fun updateKnowledgeBaseEnabled(value: Boolean) = launch { dataStore.updateKnowledgeBaseEnabled(value) }
     fun updateKnowledgeSendLimit(value: Int) = launch { dataStore.updateKnowledgeSendLimit(value) }
+    fun updateExperimentalMarathonEnabled(value: Boolean) = launch { dataStore.updateExperimentalMarathonEnabled(value) }
+    fun updateMarathonDurationMinutes(value: Float) = launch { dataStore.updateMarathonDurationMinutes(value) }
+    fun updateMarathonDisableAi(value: Boolean) = launch { dataStore.updateMarathonDisableAi(value) }
     fun updateNoteSortField(value: NoteSortField) = launch { dataStore.updateNoteSortField(value) }
     fun updateNoteSortDirection(value: NoteSortDirection) = launch { dataStore.updateNoteSortDirection(value) }
 
@@ -138,7 +141,10 @@ class SettingsViewModel(
         EditableSettingKeys.ShowMarkdownMarkers,
         EditableSettingKeys.ShowCompletionErrorToast,
         EditableSettingKeys.KnowledgeBaseEnabled,
-        EditableSettingKeys.KnowledgeSendLimit
+        EditableSettingKeys.KnowledgeSendLimit,
+        EditableSettingKeys.ExperimentalMarathonEnabled,
+        EditableSettingKeys.MarathonDurationMinutes,
+        EditableSettingKeys.MarathonDisableAi
     )
 
     class Factory(
