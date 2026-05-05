@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,6 +23,10 @@ import com.example.ainote.ui.editor.MarkdownFormatAction
 @Composable
 fun DocumentAssistToolbar(
     onAction: (MarkdownFormatAction) -> Unit,
+    showCompletionActions: Boolean = false,
+    onAcceptCompletion: () -> Unit = {},
+    onRetryCompletion: () -> Unit = {},
+    onDismissCompletion: () -> Unit = {},
     markdownToolsEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -38,17 +41,23 @@ fun DocumentAssistToolbar(
                 .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 8.dp, vertical = 6.dp)
         ) {
-            AiCompletionButton { onAction(MarkdownFormatAction.ManualCompletion) }
-            ToolButton("<") { onAction(MarkdownFormatAction.Outdent) }
-            ToolButton(">") { onAction(MarkdownFormatAction.Indent) }
-            if (markdownToolsEnabled) {
-                ToolButton("H1") { onAction(MarkdownFormatAction.Heading1) }
-                ToolButton("H2") { onAction(MarkdownFormatAction.Heading2) }
-                ToolButton("H3") { onAction(MarkdownFormatAction.Heading3) }
-                ToolButton("B", fontWeight = FontWeight.Bold) { onAction(MarkdownFormatAction.Bold) }
-                ToolButton("I", fontStyle = FontStyle.Italic) { onAction(MarkdownFormatAction.Italic) }
-                ToolButton("S", textDecoration = TextDecoration.LineThrough) { onAction(MarkdownFormatAction.Strike) }
-                ToolButton("U", textDecoration = TextDecoration.Underline) { onAction(MarkdownFormatAction.Underline) }
+            if (showCompletionActions) {
+                ToolButton("插入", onClick = onAcceptCompletion)
+                ToolButton("重试", onClick = onRetryCompletion)
+                ToolButton("取消", onClick = onDismissCompletion)
+            } else {
+                AiCompletionButton { onAction(MarkdownFormatAction.ManualCompletion) }
+                ToolButton("<") { onAction(MarkdownFormatAction.Outdent) }
+                ToolButton(">") { onAction(MarkdownFormatAction.Indent) }
+                if (markdownToolsEnabled) {
+                    ToolButton("H1") { onAction(MarkdownFormatAction.Heading1) }
+                    ToolButton("H2") { onAction(MarkdownFormatAction.Heading2) }
+                    ToolButton("H3") { onAction(MarkdownFormatAction.Heading3) }
+                    ToolButton("B", fontWeight = FontWeight.Bold) { onAction(MarkdownFormatAction.Bold) }
+                    ToolButton("I", fontStyle = FontStyle.Italic) { onAction(MarkdownFormatAction.Italic) }
+                    ToolButton("S", textDecoration = TextDecoration.LineThrough) { onAction(MarkdownFormatAction.Strike) }
+                    ToolButton("U", textDecoration = TextDecoration.Underline) { onAction(MarkdownFormatAction.Underline) }
+                }
             }
         }
     }
@@ -64,7 +73,7 @@ private fun AiCompletionButton(
             .height(44.dp)
             .padding(horizontal = 2.dp)
     ) {
-        Icon(
+        androidx.compose.material3.Icon(
             imageVector = Icons.Default.AutoAwesome,
             contentDescription = "手动 AI 补全"
         )

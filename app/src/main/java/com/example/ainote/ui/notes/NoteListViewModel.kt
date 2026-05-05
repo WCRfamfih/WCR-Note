@@ -142,6 +142,12 @@ class NoteListViewModel(
         }
     }
 
+    fun updateNoteCover(id: Long, coverImageUri: String?) {
+        viewModelScope.launch {
+            repository.updateNoteCover(id, coverImageUri)
+        }
+    }
+
     private fun sortNotes(notes: List<Note>, settings: UserSettings): List<Note> {
         val sorted = when (settings.noteSortField) {
             NoteSortField.Name -> notes.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayTitle })

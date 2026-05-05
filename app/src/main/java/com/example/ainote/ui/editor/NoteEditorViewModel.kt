@@ -100,19 +100,23 @@ class NoteEditorViewModel(
     }
 
     fun updateTitle(value: String) {
+        discardCompletionPreview()
         _uiState.update { it.copy(title = value, completion = CompletionUiState()) }
         scheduleSave()
     }
 
     fun toggleGlobalKnowledge(value: Boolean) {
         if (_uiState.value.contentType != NoteContentType.Knowledge) return
+        discardCompletionPreview()
         _uiState.update { it.copy(isGlobalKnowledge = value) }
         scheduleSave()
     }
 
     fun updateContent(value: TextFieldValue) {
-        val normalizedValue = if (showMarkdownMarkers) value else value.normalizeMarkdownSelection()
-        val current = _uiState.value.content
+        val currentState = _uiState.value
+        val adjustedValue = removeCompletionPreviewFromValue(value)
+        val normalizedValue = if (showMarkdownMarkers) adjustedValue else adjustedValue.normalizeMarkdownSelection()
+        val current = currentState.content.withoutPreview(currentState.completion.previewRange)
         val contentChanged = current.text != normalizedValue.text
         if (current != normalizedValue) {
             undoStack.addLast(current)
@@ -136,6 +140,7 @@ class NoteEditorViewModel(
     }
 
     fun undo() {
+        discardCompletionPreview()
         val current = _uiState.value.content
         val previous = undoStack.removeLastOrNull() ?: return
         redoStack.addLast(current)
@@ -152,6 +157,7 @@ class NoteEditorViewModel(
     }
 
     fun redo() {
+        discardCompletionPreview()
         val current = _uiState.value.content
         val next = redoStack.removeLastOrNull() ?: return
         undoStack.addLast(current)
@@ -168,16 +174,29 @@ class NoteEditorViewModel(
     }
 
     fun acceptCompletion() {
-        val suggestion = _uiState.value.completion.suggestion ?: return
-        val current = _uiState.value.content
-        val cursor = current.selection.start.coerceIn(0, current.text.length)
-        val nextText = current.text.substring(0, cursor) + suggestion + current.text.substring(cursor)
-        updateContent(TextFieldValue(nextText, selection = TextRange(cursor + suggestion.length)))
+        val state = _uiState.value
+        val range = state.completion.previewRange ?: return
+        val previous = state.content.withoutPreview(range)
+        undoStack.addLast(previous)
+        if (undoStack.size > 100) {
+            undoStack.removeFirst()
+        }
+        redoStack.clear()
+        _uiState.update {
+            it.copy(
+                completion = CompletionUiState(),
+                content = it.content.copy(selection = TextRange(range.max)),
+                wordCount = it.content.text.length,
+                canUndo = undoStack.isNotEmpty(),
+                canRedo = redoStack.isNotEmpty()
+            )
+        }
+        scheduleSave()
     }
 
     fun dismissCompletion() {
         completionJob?.cancel()
-        _uiState.update { it.copy(completion = CompletionUiState()) }
+        discardCompletionPreview()
     }
 
     fun requestCompletionNow() {
@@ -190,6 +209,7 @@ class NoteEditorViewModel(
     }
 
     fun applyMarkdownFormat(action: MarkdownFormatAction) {
+        discardCompletionPreview()
         if (
             contentType == NoteContentType.Knowledge &&
             action !in setOf(MarkdownFormatAction.ManualCompletion, MarkdownFormatAction.Outdent, MarkdownFormatAction.Indent)
@@ -216,6 +236,7 @@ class NoteEditorViewModel(
     }
 
     fun runManualAction(actionType: AiActionType) {
+        discardCompletionPreview()
         completionJob?.cancel()
         viewModelScope.launch {
             val settings = settingsDataStore.settings.first()
@@ -247,7 +268,11 @@ class NoteEditorViewModel(
         }
     }
 
-    fun buildKnowledgeExtractionLaunch(settings: UserSettings): KnowledgeExtractionLaunchArgs {
+    fun buildKnowledgeExtractionLaunch(
+        settings: UserSettings,
+        forceFullDocument: Boolean = false
+    ): KnowledgeExtractionLaunchArgs {
+        discardCompletionPreview()
         val state = _uiState.value
         return KnowledgeExtractionLaunchArgs(
             noteId = state.noteId,
@@ -256,7 +281,7 @@ class NoteEditorViewModel(
                 content = state.content.text,
                 selectionStart = state.content.selection.start,
                 selectionEnd = state.content.selection.end,
-                useFullNoteContext = settings.useFullNoteContext,
+                useFullNoteContext = forceFullDocument || settings.useFullNoteContext,
                 beforeLineCount = settings.completionBeforeLineCount,
                 afterLineCount = settings.completionAfterLineCount
             )
@@ -264,6 +289,7 @@ class NoteEditorViewModel(
     }
 
     fun retryManualAction() {
+        discardCompletionPreview()
         val request = _uiState.value.manualAi.retryRequest ?: return
         completionJob?.cancel()
         viewModelScope.launch {
@@ -429,7 +455,7 @@ class NoteEditorViewModel(
         noteRepository.saveNote(
             id = state.noteId,
             title = state.title,
-            content = state.content.text,
+            content = state.content.withoutPreview(state.completion.previewRange).text,
             createdAt = state.createdAt,
             pinned = state.pinned,
             contentType = state.contentType,
@@ -443,9 +469,9 @@ class NoteEditorViewModel(
             val settings = settingsDataStore.settings.first()
             if (!canRequestCompletion(settings, force, contentChanged)) {
                 if (force) {
-                    AiDebugLogStore.add("Completion skipped", "Manual completion skipped because the cursor is not after existing body text.")
+                    AiDebugLogStore.add("Completion skipped", "Manual completion skipped because the cursor is not in a completable position.")
                     _uiState.update {
-                        it.copy(completion = CompletionUiState(errorMessage = "请把光标放在已有正文之后再补全。"))
+                        it.copy(completion = CompletionUiState(errorMessage = "请把光标放在可补全的位置后再试。"))
                     }
                 }
                 return@launch
@@ -474,14 +500,12 @@ class NoteEditorViewModel(
             .onSuccess { result ->
                 val suggestion = result.text.takeIf(String::isNotBlank)
                 _uiState.update {
-                    it.copy(
-                        completion = if (suggestion == null) {
-                            AiDebugLogStore.add("Completion empty", "AI returned no usable completion text after filtering.")
-                            CompletionUiState(errorMessage = "AI 没有返回可用的补全文字，请重试。")
-                        } else {
-                            CompletionUiState(suggestion = suggestion)
-                        }
-                    )
+                    if (suggestion == null) {
+                        AiDebugLogStore.add("Completion empty", "AI returned no usable completion text after filtering.")
+                        it.copy(completion = CompletionUiState(errorMessage = "AI 没有返回可用的补全文字，请重试。"))
+                    } else {
+                        it.withCompletionPreview(suggestion)
+                    }
                 }
             }
             .onFailure { error ->
@@ -587,7 +611,54 @@ class NoteEditorViewModel(
             state.content.text.take(cursor).isNotBlank() &&
             (!settings.skipBlankLineAutoCompletion || !isCurrentLineBlank(state.content.text, cursor)) &&
             (!settings.preferChineseAutoCompletion || containsChinese(state.content.text.take(cursor))) &&
-            state.completion.suggestion == null
+            state.completion.previewRange == null
+    }
+
+    private fun discardCompletionPreview() {
+        val state = _uiState.value
+        val previewRange = state.completion.previewRange ?: return
+        val restored = state.content.withoutPreview(previewRange)
+        _uiState.update {
+            it.copy(
+                content = restored,
+                wordCount = restored.text.length,
+                completion = CompletionUiState()
+            )
+        }
+    }
+
+    private fun removeCompletionPreviewFromValue(value: TextFieldValue): TextFieldValue {
+        val previewRange = _uiState.value.completion.previewRange ?: return value
+        return value.withoutPreview(previewRange)
+    }
+
+    private fun TextFieldValue.withoutPreview(previewRange: TextRange?): TextFieldValue {
+        val range = previewRange ?: return this
+        if (range.collapsed) return this
+        val start = range.min.coerceIn(0, text.length)
+        val end = range.max.coerceIn(start, text.length)
+        val nextText = text.removeRange(start, end)
+        fun adjust(offset: Int): Int = when {
+            offset <= start -> offset
+            offset >= end -> offset - (end - start)
+            else -> start
+        }.coerceIn(0, nextText.length)
+        return copy(
+            text = nextText,
+            selection = TextRange(adjust(selection.start), adjust(selection.end))
+        )
+    }
+
+    private fun NoteEditorUiState.withCompletionPreview(suggestion: String): NoteEditorUiState {
+        val baseContent = content.withoutPreview(completion.previewRange)
+        val cursor = baseContent.selection.start.coerceIn(0, baseContent.text.length)
+        val nextText = baseContent.text.substring(0, cursor) + suggestion + baseContent.text.substring(cursor)
+        val previewRange = TextRange(cursor, cursor + suggestion.length)
+        return copy(
+            content = TextFieldValue(nextText, selection = TextRange(previewRange.max)),
+            wordCount = nextText.length,
+            completion = CompletionUiState(suggestion = suggestion, previewRange = previewRange)
+        )
     }
 
     private fun containsChinese(text: String): Boolean {

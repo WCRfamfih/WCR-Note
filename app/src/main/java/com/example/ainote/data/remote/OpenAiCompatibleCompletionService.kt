@@ -250,11 +250,12 @@ class OpenAiCompatibleCompletionService(
         val languageRule = if (request.language == "zh") {
             "Use Simplified Chinese."
         } else {
-            "Continue in the same language and style as the text before the cursor."
+            "Use the same language and style as the surrounding text."
         }
         return "You are a multilingual writing completion assistant. " +
-            "Output only text that can naturally continue after the cursor. " +
-            "Do not explain, do not quote, and do not repeat existing content. " +
+            "Output only the text that should be inserted at the cursor position. " +
+            "The result must read naturally when placed between the text before the cursor and the text after the cursor. " +
+            "Do not explain, do not quote, and do not repeat existing content from either side. " +
             "$languageRule Keep the completion within ${request.maxLength} characters."
     }
 

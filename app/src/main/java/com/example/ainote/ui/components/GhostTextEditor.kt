@@ -1,83 +1,85 @@
 package com.example.ainote.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.TextToolbar
+import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.TextToolbar
-import androidx.compose.ui.platform.TextToolbarStatus
-import androidx.compose.runtime.CompositionLocalProvider
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.roundToInt
 
 @Composable
 fun GhostTextEditor(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
     modifier: Modifier = Modifier,
-    ghostText: String?,
     textSizeSp: Int,
     lineHeightSp: Float,
     letterSpacingSp: Float,
     fontFamily: FontFamily,
-    onAcceptGhostText: () -> Unit,
-    onDismissGhostText: () -> Unit,
-    onRetryGhostText: () -> Unit,
+    previewRange: TextRange? = null,
+    pagedMode: Boolean = false,
+    animatePageTransitions: Boolean = true,
+    freezePaginationHeight: Boolean = false,
+    allowCurrentPageVerticalScroll: Boolean = false,
+    currentPage: Int = 0,
+    onCurrentPageChange: (Int) -> Unit = {},
+    onPageCountChange: (Int) -> Unit = {},
     renderMarkdown: Boolean = true,
     onFocusChanged: (Boolean) -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val density = LocalDensity.current
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     val parentTextToolbar = LocalTextToolbar.current
+    val density = LocalDensity.current
     val textStyle = MaterialTheme.typography.bodyLarge.copy(
         color = colorScheme.onSurface,
         fontSize = textSizeSp.sp,
@@ -86,12 +88,92 @@ fun GhostTextEditor(
         fontFamily = fontFamily
     )
     val ghostStyle = textStyle.copy(color = colorScheme.onSurfaceVariant.copy(alpha = 0.48f))
-    val visualTransformation = remember(textStyle, colorScheme, renderMarkdown) {
-        if (renderMarkdown) markdownVisualTransformation(textStyle, colorScheme) else VisualTransformation.None
+    val previewStyle = remember(ghostStyle.color) { SpanStyle(color = ghostStyle.color) }
+    val textMeasurer = rememberTextMeasurer()
+    var viewportHeightPx by remember { mutableIntStateOf(0) }
+    var viewportWidthPx by remember { mutableIntStateOf(0) }
+    var paginationHeightPx by remember { mutableIntStateOf(0) }
+    var horizontalDragTotal by remember { mutableIntStateOf(0) }
+    val pageScrollState = rememberScrollState()
+    val editorPresentation = remember(value.text, textStyle, renderMarkdown, previewRange, previewStyle) {
+        buildEditorPresentation(
+            text = value.text,
+            textStyle = textStyle,
+            renderMarkdown = renderMarkdown,
+            previewRange = previewRange,
+            previewStyle = previewStyle
+        )
     }
-    var cursorRect by remember { mutableStateOf(Rect.Zero) }
-    var editorSize by remember { mutableStateOf(IntSize.Zero) }
-    var controlsSize by remember { mutableStateOf(IntSize.Zero) }
+    val pageRanges = remember(
+        pagedMode,
+        freezePaginationHeight,
+        editorPresentation,
+        viewportWidthPx,
+        viewportHeightPx,
+        paginationHeightPx,
+        textStyle
+    ) {
+        val effectiveHeightPx = when {
+            freezePaginationHeight && paginationHeightPx > 0 -> paginationHeightPx
+            else -> viewportHeightPx
+        }
+        if (!pagedMode || viewportWidthPx <= 0 || effectiveHeightPx <= 0) {
+            listOf(0 to value.text.length)
+        } else {
+            computePageRanges(
+                presentation = editorPresentation,
+                textMeasurer = textMeasurer,
+                textStyle = textStyle,
+                widthPx = viewportWidthPx,
+                heightPx = effectiveHeightPx
+            )
+        }
+    }
+    val pageCount = pageRanges.size.coerceAtLeast(1)
+    val safePage = currentPage.coerceIn(0, pageCount - 1)
+    val activeRange = pageRanges.getOrElse(safePage) { 0 to value.text.length }
+    val localPreviewRange = previewRange?.let { range ->
+        val start = maxOf(range.min, activeRange.first)
+        val end = minOf(range.max, activeRange.second)
+        if (start < end) TextRange(start - activeRange.first, end - activeRange.first) else null
+    }
+    val pageValue = remember(value, activeRange) {
+        val localSelection = TextRange(
+            start = (value.selection.start - activeRange.first).coerceIn(0, activeRange.second - activeRange.first),
+            end = (value.selection.end - activeRange.first).coerceIn(0, activeRange.second - activeRange.first)
+        )
+        value.copy(
+            text = value.text.substring(activeRange.first, activeRange.second),
+            selection = localSelection
+        )
+    }
+    val visualTransformation = remember(textStyle, renderMarkdown, localPreviewRange, previewStyle) {
+        editorVisualTransformation(
+            textStyle = textStyle,
+            renderMarkdown = renderMarkdown,
+            previewRange = localPreviewRange,
+            previewStyle = previewStyle
+        )
+    }
+
+    LaunchedEffect(pageCount) {
+        onPageCountChange(pageCount)
+        if (safePage != currentPage) {
+            onCurrentPageChange(safePage)
+        }
+    }
+
+    LaunchedEffect(value.selection, pageRanges, pagedMode) {
+        if (!pagedMode) return@LaunchedEffect
+        val cursorPage = pageIndexForOffset(value.selection.start, pageRanges)
+        if (cursorPage != safePage) onCurrentPageChange(cursorPage)
+    }
+
+    LaunchedEffect(safePage, allowCurrentPageVerticalScroll) {
+        if (allowCurrentPageVerticalScroll) {
+            pageScrollState.scrollTo(0)
+        }
+    }
 
     val plainCopyToolbar = remember(parentTextToolbar, clipboardManager, value, renderMarkdown) {
         PlainMarkdownCopyToolbar(parentTextToolbar, clipboardManager) {
@@ -103,103 +185,206 @@ fun GhostTextEditor(
         Box(
             modifier = modifier
                 .background(colorScheme.background)
-                .onSizeChanged { editorSize = it }
+                .clipToBounds()
+                .onSizeChanged {
+                    val horizontalPaddingPx = with(density) { 16.dp.roundToPx() } * 2
+                    val verticalPaddingPx = with(density) { 16.dp.roundToPx() } * 2
+                    viewportWidthPx = (it.width - horizontalPaddingPx).coerceAtLeast(1)
+                    viewportHeightPx = (it.height - verticalPaddingPx).coerceAtLeast(1)
+                    if (!freezePaginationHeight || paginationHeightPx == 0) {
+                        paginationHeightPx = viewportHeightPx
+                    }
+                }
+                .pointerInput(pagedMode, safePage, pageCount) {
+                    if (!pagedMode) return@pointerInput
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            horizontalDragTotal += dragAmount.toInt()
+                        },
+                        onDragEnd = {
+                            val threshold = 72
+                            when {
+                                horizontalDragTotal <= -threshold && safePage < pageCount - 1 -> onCurrentPageChange(safePage + 1)
+                                horizontalDragTotal >= threshold && safePage > 0 -> onCurrentPageChange(safePage - 1)
+                            }
+                            horizontalDragTotal = 0
+                        },
+                        onDragCancel = { horizontalDragTotal = 0 }
+                    )
+                }
                 .padding(16.dp)
         ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { onFocusChanged(it.isFocused) },
-                textStyle = textStyle,
-                visualTransformation = visualTransformation,
-                cursorBrush = SolidColor(colorScheme.primary),
-                onTextLayout = { layoutResult ->
-                    val transformedCursor = if (renderMarkdown) {
-                        markdownTransformedOffset(
-                            inputText = value.text,
-                            originalOffset = value.selection.start
-                        )
-                    } else {
-                        value.selection.start
-                    }
-                    cursorRect = layoutResult.getCursorRect(transformedCursor)
-                },
-                decorationBox = { innerTextField ->
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (value.text.isBlank()) {
-                            Text(
-                                text = "\u5f00\u59cb\u5199\u70b9\u4ec0\u4e48...",
-                                style = ghostStyle
-                            )
-                        }
-                        innerTextField()
-                    }
-                }
-            )
+            val editorModifier = Modifier
+                .fillMaxWidth()
+                .then(if (allowCurrentPageVerticalScroll) Modifier.verticalScroll(pageScrollState) else Modifier.fillMaxSize())
+                .onFocusChanged { onFocusChanged(it.isFocused) }
 
-            if (!ghostText.isNullOrBlank()) {
-                val horizontalPaddingPx = with(density) { 32.dp.roundToPx() }
-                val editorWidth = max(editorSize.width - horizontalPaddingPx, 0)
-                val cursorRight = cursorRect.right.roundToInt()
-                val cursorLeft = cursorRect.left.roundToInt()
-                val cursorTop = cursorRect.top.roundToInt()
-                val cursorBottom = cursorRect.bottom.roundToInt()
-                val minInlineWidth = 96
-                val inlineRemainingWidth = editorWidth - cursorRight
-                val wrapGhostToNextLine = inlineRemainingWidth < minInlineWidth
-                val ghostX = if (wrapGhostToNextLine) 0 else cursorRight.coerceIn(0, editorWidth)
-                val ghostY = if (wrapGhostToNextLine) cursorBottom + 4 else cursorTop
-                val ghostMaxWidthPx = if (wrapGhostToNextLine) editorWidth else max(inlineRemainingWidth, minInlineWidth)
-                val ghostMaxWidth = with(density) { ghostMaxWidthPx.toDp() }
-                val controlsX = min(max(cursorLeft, 0), max(editorWidth - controlsSize.width, 0))
-                val controlsY = if (wrapGhostToNextLine) {
-                    ghostY + (textSizeSp * 1.8f).roundToInt()
-                } else {
-                    cursorBottom + 12
-                }
-                Text(
-                    text = ghostText,
-                    style = ghostStyle,
-                    modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                x = ghostX,
-                                y = ghostY
-                            )
-                        }
-                        .widthIn(max = ghostMaxWidth)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onAcceptGhostText
+            val editorContent: @Composable () -> Unit = {
+                BasicTextField(
+                    value = pageValue,
+                    onValueChange = { localValue ->
+                        val nextText = value.text.replaceRange(activeRange.first, activeRange.second, localValue.text)
+                        val nextSelection = TextRange(
+                            start = (activeRange.first + localValue.selection.start).coerceIn(0, nextText.length),
+                            end = (activeRange.first + localValue.selection.end).coerceIn(0, nextText.length)
                         )
-                )
-                Surface(
-                    tonalElevation = 6.dp,
-                    shadowElevation = 6.dp,
-                    shape = MaterialTheme.shapes.large,
-                    color = colorScheme.surface,
-                    modifier = Modifier
-                        .offset { IntOffset(x = controlsX, y = controlsY) }
-                        .onSizeChanged { controlsSize = it }
-                ) {
-                    Row(modifier = Modifier.padding(horizontal = 4.dp)) {
-                        IconButton(onClick = onAcceptGhostText) {
-                            Icon(Icons.Default.Check, contentDescription = "\u63a5\u53d7\u8865\u5168")
-                        }
-                        IconButton(onClick = onDismissGhostText) {
-                            Icon(Icons.Default.Close, contentDescription = "\u5ffd\u7565\u8865\u5168")
-                        }
-                        IconButton(onClick = onRetryGhostText) {
-                            Icon(Icons.Default.Refresh, contentDescription = "\u91cd\u8bd5\u8865\u5168")
+                        onValueChange(localValue.copy(text = nextText, selection = nextSelection))
+                    },
+                    modifier = editorModifier,
+                    textStyle = textStyle,
+                    visualTransformation = visualTransformation,
+                    cursorBrush = SolidColor(colorScheme.primary),
+                    decorationBox = { innerTextField ->
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            if (value.text.isBlank()) {
+                                Text(
+                                    text = "\u5f00\u59cb\u5199\u70b9\u4ec0\u4e48...",
+                                    style = ghostStyle
+                                )
+                            }
+                            innerTextField()
                         }
                     }
+                )
+            }
+
+            if (pagedMode && animatePageTransitions) {
+                AnimatedContent(
+                    targetState = safePage,
+                    transitionSpec = {
+                        if (targetState > initialState) {
+                            slideInHorizontally(
+                                animationSpec = tween(220),
+                                initialOffsetX = { it }
+                            ) + fadeIn(animationSpec = tween(220)) togetherWith
+                                slideOutHorizontally(
+                                    animationSpec = tween(220),
+                                    targetOffsetX = { -it }
+                                ) + fadeOut(animationSpec = tween(180))
+                        } else {
+                            slideInHorizontally(
+                                animationSpec = tween(220),
+                                initialOffsetX = { -it }
+                            ) + fadeIn(animationSpec = tween(220)) togetherWith
+                                slideOutHorizontally(
+                                    animationSpec = tween(220),
+                                    targetOffsetX = { it }
+                                ) + fadeOut(animationSpec = tween(180))
+                        }
+                    },
+                    label = "editor_page_transition"
+                ) {
+                    editorContent()
                 }
+            } else {
+                editorContent()
             }
         }
     }
+}
+
+private fun buildEditorPresentation(
+    text: String,
+    textStyle: TextStyle,
+    renderMarkdown: Boolean,
+    previewRange: TextRange?,
+    previewStyle: SpanStyle
+): EditorPresentation {
+    if (!renderMarkdown) {
+        val builder = AnnotatedString.Builder(text)
+        previewRange
+            ?.takeIf { !it.collapsed }
+            ?.let { range ->
+                val start = range.min.coerceIn(0, text.length)
+                val end = range.max.coerceIn(start, text.length)
+                if (start < end) builder.addStyle(previewStyle, start, end)
+            }
+        return EditorPresentation(
+            annotatedString = builder.toAnnotatedString(),
+            offsetMapping = OffsetMapping.Identity,
+            originalLength = text.length
+        )
+    }
+    val baseStyle = SpanStyle(
+        color = textStyle.color,
+        fontSize = textStyle.fontSize,
+        fontWeight = textStyle.fontWeight,
+        fontStyle = textStyle.fontStyle,
+        textDecoration = textStyle.textDecoration,
+        fontFamily = textStyle.fontFamily
+    )
+    val headingSize = textStyle.fontSize.takeIf { it != TextUnit.Unspecified } ?: 18.sp
+    val presentation = markdownPresentation(text, baseStyle, headingSize)
+    val builder = AnnotatedString.Builder(presentation.annotatedString)
+    previewRange
+        ?.takeIf { !it.collapsed }
+        ?.let { range ->
+            val start = presentation.offsetMapping.originalToTransformed(range.min)
+            val end = presentation.offsetMapping.originalToTransformed(range.max)
+            if (start < end) builder.addStyle(previewStyle, start, end)
+        }
+    return EditorPresentation(
+        annotatedString = builder.toAnnotatedString(),
+        offsetMapping = presentation.offsetMapping,
+        originalLength = text.length
+    )
+}
+
+private fun computePageRanges(
+    presentation: EditorPresentation,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    textStyle: TextStyle,
+    widthPx: Int,
+    heightPx: Int
+): List<Pair<Int, Int>> {
+    val measured = textMeasurer.measure(
+        text = presentation.annotatedString,
+        style = textStyle,
+        constraints = Constraints(maxWidth = widthPx)
+    )
+    if (measured.lineCount == 0) {
+        return listOf(0 to 0)
+    }
+    val ranges = mutableListOf<Pair<Int, Int>>()
+    var startLine = 0
+    while (startLine < measured.lineCount) {
+        val pageTop = measured.getLineTop(startLine)
+        var endLine = startLine
+        while (endLine < measured.lineCount) {
+            val bottom = measured.getLineBottom(endLine)
+            if (bottom - pageTop > heightPx && endLine > startLine) break
+            if (bottom - pageTop > heightPx) break
+            endLine++
+        }
+        val lastLine = if (endLine == startLine) startLine else endLine - 1
+        val transformedStart = measured.getLineStart(startLine)
+        val transformedEnd = measured.getLineEnd(lastLine, visibleEnd = true)
+        val originalStart = presentation.offsetMapping.transformedToOriginal(transformedStart)
+        val originalEnd = presentation.offsetMapping.transformedToOriginal(transformedEnd)
+        val safeRange = originalStart.coerceAtMost(originalEnd) to originalEnd.coerceAtLeast(originalStart)
+        if (ranges.lastOrNull() != safeRange) {
+            ranges += safeRange
+        }
+        startLine = lastLine + 1
+    }
+    return ranges.ifEmpty { listOf(0 to presentation.originalLength) }
+}
+
+private fun pageIndexForOffset(
+    offset: Int,
+    pageRanges: List<Pair<Int, Int>>
+): Int {
+    val safeOffset = offset.coerceAtLeast(0)
+    pageRanges.forEachIndexed { index, range ->
+        val start = range.first
+        val end = range.second
+        val isLast = index == pageRanges.lastIndex
+        if (safeOffset in start until end || (isLast && safeOffset == end)) {
+            return index
+        }
+    }
+    return (pageRanges.size - 1).coerceAtLeast(0)
 }
 
 fun markdownAnnotatedString(
@@ -253,14 +438,6 @@ fun normalizeMarkdownMarkers(inputText: String): String {
         current = next
     }
     return current
-}
-
-private fun markdownTransformedOffset(inputText: String, originalOffset: Int): Int {
-    return markdownPresentation(
-        inputText = inputText,
-        baseStyle = SpanStyle(),
-        headingSize = 18.sp
-    ).offsetMapping.originalToTransformed(originalOffset)
 }
 
 private fun markdownMarkerMask(inputText: String): BooleanArray {
@@ -379,9 +556,11 @@ private fun markdownPresentation(
     )
 }
 
-private fun markdownVisualTransformation(
+private fun editorVisualTransformation(
     textStyle: TextStyle,
-    colorScheme: ColorScheme
+    renderMarkdown: Boolean,
+    previewRange: TextRange?,
+    previewStyle: SpanStyle
 ): VisualTransformation = VisualTransformation { text ->
     val baseStyle = SpanStyle(
         color = textStyle.color,
@@ -391,9 +570,28 @@ private fun markdownVisualTransformation(
         textDecoration = textStyle.textDecoration,
         fontFamily = textStyle.fontFamily
     )
+    if (!renderMarkdown) {
+        val builder = AnnotatedString.Builder(text.text)
+        previewRange
+            ?.takeIf { !it.collapsed }
+            ?.let { range ->
+                val start = range.min.coerceIn(0, text.text.length)
+                val end = range.max.coerceIn(start, text.text.length)
+                if (start < end) builder.addStyle(previewStyle, start, end)
+            }
+        return@VisualTransformation TransformedText(builder.toAnnotatedString(), OffsetMapping.Identity)
+    }
     val headingSize = textStyle.fontSize.takeIf { it != TextUnit.Unspecified } ?: 18.sp
     val presentation = markdownPresentation(text.text, baseStyle, headingSize)
-    TransformedText(presentation.annotatedString, presentation.offsetMapping)
+    val builder = AnnotatedString.Builder(presentation.annotatedString)
+    previewRange
+        ?.takeIf { !it.collapsed }
+        ?.let { range ->
+            val start = presentation.offsetMapping.originalToTransformed(range.min)
+            val end = presentation.offsetMapping.originalToTransformed(range.max)
+            if (start < end) builder.addStyle(previewStyle, start, end)
+        }
+    TransformedText(builder.toAnnotatedString(), presentation.offsetMapping)
 }
 
 private fun collectHeadingSpans(
@@ -558,6 +756,12 @@ private data class MarkdownPresentation(
     val annotatedString: AnnotatedString,
     val plainText: String,
     val offsetMapping: OffsetMapping
+)
+
+private data class EditorPresentation(
+    val annotatedString: AnnotatedString,
+    val offsetMapping: OffsetMapping,
+    val originalLength: Int
 )
 
 private class MarkdownOffsetMapping(

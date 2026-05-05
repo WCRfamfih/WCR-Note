@@ -67,6 +67,7 @@ class NoteRepository(
             updatedAt = updatedAt,
             folderName = existing?.folderName ?: dao.getFolderName(id).orEmpty(),
             contentType = resolvedContentType.storageValue,
+            coverImageUri = existing?.coverImageUri.orEmpty(),
             isGlobalKnowledge = if (resolvedContentType == NoteContentType.Knowledge) isGlobalKnowledge else false,
             pinned = pinned
         )
@@ -113,6 +114,10 @@ class NoteRepository(
         )
     }
 
+    suspend fun updateNoteCover(id: Long, coverImageUri: String?) {
+        dao.updateCover(id, coverImageUri?.trim().orEmpty(), System.currentTimeMillis())
+    }
+
     suspend fun importBackupsFromDirectory(directoryUri: String): Int {
         val backupRepository = backupRepository ?: return 0
         val backups = backupRepository.readBackups(directoryUri)
@@ -156,8 +161,13 @@ class NoteRepository(
         return searchNotes(query = query, contentType = NoteContentType.Knowledge)
     }
 
-    suspend fun createKnowledge(title: String, content: String, isGlobalKnowledge: Boolean = false): Long {
-        val id = createNote(contentType = NoteContentType.Knowledge)
+    suspend fun createKnowledge(
+        title: String,
+        content: String,
+        folderName: String = "",
+        isGlobalKnowledge: Boolean = false
+    ): Long {
+        val id = createNote(folderName = folderName, contentType = NoteContentType.Knowledge)
         saveNote(
             id = id,
             title = title,
@@ -241,6 +251,7 @@ class NoteRepository(
         updatedAt = updatedAt,
         folderName = folderName,
         contentType = NoteContentType.from(contentType),
+        coverImageUri = coverImageUri,
         isGlobalKnowledge = isGlobalKnowledge,
         pinned = pinned
     )

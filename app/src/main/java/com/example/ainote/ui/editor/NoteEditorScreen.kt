@@ -8,13 +8,17 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -64,7 +68,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.AiRepository
@@ -77,13 +81,13 @@ import com.example.ainote.domain.model.KnowledgeExtractionLaunchArgs
 import com.example.ainote.domain.model.NoteContentType
 import com.example.ainote.ui.components.AiActionBottomSheet
 import com.example.ainote.ui.components.AiActionResultCard
-import com.example.ainote.ui.components.AiCompletionCard
 import com.example.ainote.ui.components.AiStatusCard
 import com.example.ainote.ui.components.DocumentAssistToolbar
 import com.example.ainote.ui.components.GhostTextEditor
 import com.example.ainote.ui.components.stripMarkdownMarkers
 import com.example.ainote.ui.export.ExportedNoteImage
 import com.example.ainote.ui.export.NoteImageExporter
+import com.example.ainote.ui.export.NoteImageRenderStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -92,7 +96,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun NoteEditorScreen(
     noteId: Long,
-    contentType: NoteContentType = NoteContentType.Note,
+    contentType: NoteContentType,
     noteRepository: NoteRepository,
     aiRepository: AiRepository,
     settingsDataStore: SettingsDataStore,
@@ -106,23 +110,29 @@ fun NoteEditorScreen(
     )
     val state by viewModel.uiState.collectAsState()
     val settings by settingsDataStore.settings.collectAsState(initial = UserSettings())
+
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
     val keyboardHeightPx = rememberKeyboardHeightPx()
     val keyboardVisible = keyboardHeightPx > with(density) { 96.dp.roundToPx() }
-    val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
     var showAiMenu by remember { mutableStateOf(false) }
     var showShareMenu by remember { mutableStateOf(false) }
+    var showExtractionContextPrompt by remember { mutableStateOf(false) }
+    var showJumpPageDialog by remember { mutableStateOf(false) }
+    var jumpPageText by remember { mutableStateOf("") }
     var exportedImage by remember { mutableStateOf<ExportedNoteImage?>(null) }
     var bodyFocused by remember { mutableStateOf(false) }
+    var currentEditorPage by remember { mutableStateOf(0) }
+    var totalEditorPages by remember { mutableStateOf(1) }
 
-    val isEditingText = bodyFocused && keyboardVisible
     val isKnowledge = state.contentType == NoteContentType.Knowledge
-    val canShowGhostText = state.completion.suggestion != null &&
-        state.content.selection.collapsed &&
-        canShowInlineGhostText(state.content)
+    val isEditingText = bodyFocused && keyboardVisible
+    val canShowGhostText = state.completion.previewRange != null && state.content.selection.collapsed
+    val compactPagedEditing = settings.editorPaginationEnabled && keyboardVisible
     val contentScrollState = rememberScrollState()
     val backgroundColor = MaterialTheme.colorScheme.background.toArgb()
     val textColor = MaterialTheme.colorScheme.onBackground.toArgb()
@@ -130,6 +140,12 @@ fun NoteEditorScreen(
     val editorLetterSpacingSp = settings.editorLetterSpacingTenthSp / 10f
     val editorFontFamily = remember(settings.editorFontPreset, settings.customEditorFontUri) {
         settings.toEditorFontFamily(context)
+    }
+    val renderMarkdown = !settings.showMarkdownMarkers && !isKnowledge
+
+    LaunchedEffect(settings.editorPaginationEnabled, state.noteId) {
+        currentEditorPage = 0
+        totalEditorPages = 1
     }
 
     BackHandler {
@@ -140,11 +156,78 @@ fun NoteEditorScreen(
         AiActionBottomSheet(
             onDismiss = { showAiMenu = false },
             onActionClick = { action ->
+                viewModel.dismissCompletion()
                 showAiMenu = false
                 if (action == AiActionType.ExtractToKnowledge) {
-                    onOpenKnowledgeExtraction(viewModel.buildKnowledgeExtractionLaunch(settings))
+                    if (!settings.useFullNoteContext && state.content.selection.collapsed) {
+                        showExtractionContextPrompt = true
+                    } else {
+                        onOpenKnowledgeExtraction(viewModel.buildKnowledgeExtractionLaunch(settings))
+                    }
                 } else {
                     viewModel.runManualAction(action)
+                }
+            }
+        )
+    }
+
+    if (showExtractionContextPrompt) {
+        AlertDialog(
+            onDismissRequest = { showExtractionContextPrompt = false },
+            title = { Text("发送全文提示") },
+            text = { Text("检测到未开启“发送整篇上下文”，是否临时发送全部内容？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExtractionContextPrompt = false
+                        onOpenKnowledgeExtraction(
+                            viewModel.buildKnowledgeExtractionLaunch(settings, forceFullDocument = true)
+                        )
+                    }
+                ) {
+                    Text("发送全部")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showExtractionContextPrompt = false
+                        onOpenKnowledgeExtraction(viewModel.buildKnowledgeExtractionLaunch(settings))
+                    }
+                ) {
+                    Text("保持当前范围")
+                }
+            }
+        )
+    }
+
+    if (showJumpPageDialog && settings.editorPaginationEnabled) {
+        AlertDialog(
+            onDismissRequest = { showJumpPageDialog = false },
+            title = { Text("跳转页码") },
+            text = {
+                TextField(
+                    value = jumpPageText,
+                    onValueChange = { jumpPageText = it.filter(Char::isDigit) },
+                    singleLine = true,
+                    placeholder = { Text("输入 1 - ${totalEditorPages.coerceAtLeast(1)}") }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        jumpPageText.toIntOrNull()?.let { page ->
+                            currentEditorPage = (page - 1).coerceIn(0, totalEditorPages.coerceAtLeast(1) - 1)
+                        }
+                        showJumpPageDialog = false
+                    }
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showJumpPageDialog = false }) {
+                    Text("取消")
                 }
             }
         )
@@ -164,7 +247,7 @@ fun NoteEditorScreen(
             )
             ListItem(
                 headlineContent = { Text("导出图片") },
-                supportingContent = { Text("生成预览图后再保存或分享。") },
+                supportingContent = { Text("生成预览后再保存或分享。") },
                 leadingContent = { Icon(Icons.Default.Image, contentDescription = null) },
                 modifier = Modifier.clickable {
                     showShareMenu = false
@@ -175,7 +258,16 @@ fun NoteEditorScreen(
                                 title = state.title,
                                 content = state.content.text,
                                 backgroundColor = backgroundColor,
-                                textColor = textColor
+                                textColor = textColor,
+                                style = NoteImageRenderStyle(
+                                    editorTextSizeSp = settings.editorTextSizeSp,
+                                    editorLineSpacingPercent = settings.editorLineSpacingPercent,
+                                    editorLetterSpacingSp = editorLetterSpacingSp,
+                                    editorFontPreset = settings.editorFontPreset,
+                                    customEditorFontUri = settings.customEditorFontUri,
+                                    renderMarkdown = renderMarkdown
+                                ),
+                                paged = settings.editorPaginationEnabled
                             )
                         }
                         result
@@ -215,19 +307,41 @@ fun NoteEditorScreen(
     }
 
     exportedImage?.let { image ->
-        val previewBitmap = remember(image.uri) {
-            context.contentResolver.openInputStream(image.uri)?.use(BitmapFactory::decodeStream)
+        val previewBitmaps = remember(image.uris) {
+            image.uris.mapNotNull { uri ->
+                context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)
+            }
         }
         ModalBottomSheet(onDismissRequest = { exportedImage = null }) {
-            previewBitmap?.let { bitmap ->
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "图片预览",
+            if (previewBitmaps.isNotEmpty()) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(360.dp)
-                        .padding(horizontal = 16.dp)
-                )
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    previewBitmaps.forEachIndexed { index, bitmap ->
+                        Column(modifier = Modifier.width(220.dp)) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(360.dp)
+                            )
+                            Text(
+                                text = "${index + 1} / ${previewBitmaps.size}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 6.dp)
+                            )
+                        }
+                    }
+                }
             }
             ListItem(
                 headlineContent = { Text("保存到相册") },
@@ -235,7 +349,12 @@ fun NoteEditorScreen(
                 modifier = Modifier.clickable {
                     coroutineScope.launch {
                         val result = withContext(Dispatchers.IO) {
-                            NoteImageExporter.saveImageToGallery(context.applicationContext, image.uri, image.fileName)
+                            runCatching {
+                                image.uris.zip(image.fileNames).forEach { (uri, fileName) ->
+                                    NoteImageExporter.saveImageToGallery(context.applicationContext, uri, fileName).getOrThrow()
+                                }
+                                image.fileNames.joinToString("、")
+                            }
                         }
                         val message = result.fold(
                             onSuccess = { "已保存：$it" },
@@ -249,10 +368,18 @@ fun NoteEditorScreen(
                 headlineContent = { Text("立即分享") },
                 leadingContent = { Icon(Icons.Default.Share, contentDescription = null) },
                 modifier = Modifier.clickable {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "image/png"
-                        putExtra(Intent.EXTRA_STREAM, image.uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    val shareIntent = if (image.uris.size > 1) {
+                        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = "image/png"
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(image.uris))
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    } else {
+                        Intent(Intent.ACTION_SEND).apply {
+                            type = "image/png"
+                            putExtra(Intent.EXTRA_STREAM, image.primaryUri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
                     }
                     context.startActivity(Intent.createChooser(shareIntent, "分享图片"))
                 }
@@ -299,16 +426,25 @@ fun NoteEditorScreen(
                                 Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做")
                             }
                         }
-                        IconButton(onClick = { showAiMenu = true }) {
+                        IconButton(onClick = {
+                            viewModel.dismissCompletion()
+                            showAiMenu = true
+                        }) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = "AI 操作")
                         }
                         if (!isEditingText) {
-                            IconButton(onClick = { showShareMenu = true }) {
+                            IconButton(onClick = {
+                                viewModel.dismissCompletion()
+                                showShareMenu = true
+                            }) {
                                 Icon(Icons.Default.Share, contentDescription = "分享")
                             }
                         }
                         if (!isEditingText && state.showKnowledgeButton) {
-                            IconButton(onClick = { onOpenKnowledgeScope(state.noteId) }) {
+                            IconButton(onClick = {
+                                viewModel.dismissCompletion()
+                                onOpenKnowledgeScope(state.noteId)
+                            }) {
                                 Icon(
                                     Icons.Default.MenuBook,
                                     contentDescription = "知识识别 ${state.knowledgeScopeSummary.enabledKnowledgeCount}/${state.knowledgeScopeSummary.totalKnowledgeCount}"
@@ -320,7 +456,10 @@ fun NoteEditorScreen(
                                 Text(if (state.isGlobalKnowledge) "全局开" else "全局关")
                             }
                         }
-                        IconButton(onClick = onOpenSettings) {
+                        IconButton(onClick = {
+                            viewModel.dismissCompletion()
+                            onOpenSettings()
+                        }) {
                             Icon(Icons.Default.Settings, contentDescription = "设置")
                         }
                     }
@@ -332,9 +471,29 @@ fun NoteEditorScreen(
         },
         bottomBar = {
             Column(modifier = Modifier.fillMaxWidth()) {
+                if (settings.editorPaginationEnabled) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${(currentEditorPage + 1).coerceAtLeast(1)}/${totalEditorPages.coerceAtLeast(1)} 页",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    jumpPageText = (currentEditorPage + 1).toString()
+                                    showJumpPageDialog = true
+                                }
+                        )
+                    }
+                }
                 Text(
                     text = if (canShowGhostText) {
-                        "${state.wordCount} 字，点击灰字接受补全"
+                        "${state.wordCount} 字，使用工具栏确认补全"
                     } else {
                         "${state.wordCount} 字，自动保存"
                     },
@@ -347,6 +506,10 @@ fun NoteEditorScreen(
                 if (bodyFocused && keyboardVisible) {
                     DocumentAssistToolbar(
                         onAction = viewModel::applyMarkdownFormat,
+                        showCompletionActions = canShowGhostText,
+                        onAcceptCompletion = viewModel::acceptCompletion,
+                        onRetryCompletion = viewModel::retryCompletion,
+                        onDismissCompletion = viewModel::dismissCompletion,
                         markdownToolsEnabled = !isKnowledge,
                         modifier = Modifier.padding(bottom = with(density) { keyboardHeightPx.toDp() })
                     )
@@ -358,7 +521,7 @@ fun NoteEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(contentScrollState)
+                .then(if (settings.editorPaginationEnabled) Modifier else Modifier.verticalScroll(contentScrollState))
                 .padding(16.dp)
         ) {
             TextField(
@@ -396,28 +559,30 @@ fun NoteEditorScreen(
                     bodyFocused = true
                     viewModel.updateContent(value)
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 320.dp),
-                ghostText = state.completion.suggestion.takeIf { canShowGhostText },
+                modifier = if (settings.editorPaginationEnabled) {
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                } else {
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 320.dp)
+                },
                 textSizeSp = settings.editorTextSizeSp,
                 lineHeightSp = editorLineHeightSp,
                 letterSpacingSp = editorLetterSpacingSp,
                 fontFamily = editorFontFamily,
-                onAcceptGhostText = viewModel::acceptCompletion,
-                onDismissGhostText = viewModel::dismissCompletion,
-                onRetryGhostText = viewModel::retryCompletion,
-                renderMarkdown = !settings.showMarkdownMarkers && !isKnowledge,
+                previewRange = state.completion.previewRange,
+                pagedMode = settings.editorPaginationEnabled,
+                animatePageTransitions = settings.editorPaginationEnabled,
+                freezePaginationHeight = compactPagedEditing,
+                allowCurrentPageVerticalScroll = compactPagedEditing,
+                currentPage = currentEditorPage,
+                onCurrentPageChange = { currentEditorPage = it },
+                onPageCountChange = { totalEditorPages = it.coerceAtLeast(1) },
+                renderMarkdown = renderMarkdown,
                 onFocusChanged = { bodyFocused = it }
             )
-            Spacer(Modifier.height(8.dp))
-            state.completion.suggestion?.takeUnless { canShowGhostText }?.let { suggestion ->
-                AiCompletionCard(
-                    text = suggestion,
-                    onAccept = viewModel::acceptCompletion,
-                    onDismiss = viewModel::dismissCompletion
-                )
-            }
             state.manualAi.result?.let { result ->
                 AiActionResultCard(
                     actionLabel = state.manualAi.actionLabel ?: "结果",
@@ -469,13 +634,6 @@ private fun rememberKeyboardHeightPx(): Int {
         }
     }
     return keyboardHeight
-}
-
-private fun canShowInlineGhostText(value: TextFieldValue): Boolean {
-    if (!value.selection.collapsed) return false
-    val cursor = value.selection.start.coerceIn(0, value.text.length)
-    val textAfterCursor = value.text.drop(cursor)
-    return textAfterCursor.isEmpty() || textAfterCursor.first() == '\n'
 }
 
 private fun UserSettings.toEditorFontFamily(context: android.content.Context): FontFamily {

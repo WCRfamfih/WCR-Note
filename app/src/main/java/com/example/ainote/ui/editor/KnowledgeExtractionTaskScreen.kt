@@ -1,9 +1,11 @@
 package com.example.ainote.ui.editor
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,7 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ainote.data.repository.AiRepository
 import com.example.ainote.data.repository.NoteRepository
+import com.example.ainote.data.settings.SettingsDataStore
 import com.example.ainote.domain.model.KnowledgeTargetSummary
+import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +63,8 @@ fun KnowledgeExtractionTaskScreen(
     initialMaterial: String,
     noteRepository: NoteRepository,
     aiRepository: AiRepository,
+    settingsDataStore: SettingsDataStore,
+    onOpenKnowledge: (Long) -> Unit,
     onBack: () -> Unit
 ) {
     val viewModel: KnowledgeExtractionTaskViewModel = viewModel(
@@ -70,9 +76,13 @@ fun KnowledgeExtractionTaskScreen(
         )
     )
     val state by viewModel.uiState.collectAsState()
+    val availableFolders by settingsDataStore.knowledgeFolders
+        .map { stored -> (stored + state.recentTargets.map { it.folderName }).map(String::trim).filter(String::isNotBlank).distinct() }
+        .collectAsState(initial = emptyList())
     var materialExpanded by remember { mutableStateOf(false) }
     var draftExpanded by remember { mutableStateOf(true) }
     var showSearchSheet by remember { mutableStateOf(false) }
+    var selectedFolderName by remember { mutableStateOf("") }
 
     if (showSearchSheet) {
         ModalBottomSheet(onDismissRequest = { showSearchSheet = false }) {
@@ -124,6 +134,7 @@ fun KnowledgeExtractionTaskScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .imePadding()
                     .padding(16.dp)
             ) {
                 Row(
@@ -163,6 +174,36 @@ fun KnowledgeExtractionTaskScreen(
                     minLines = 3,
                     maxLines = 5
                 )
+                if (state.selectedTarget == null && availableFolders.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "\u521b\u5efa\u540e\u79fb\u5165\u6587\u4ef6\u5939",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedFolderName.isBlank(),
+                            onClick = { selectedFolderName = "" },
+                            enabled = !state.completed && !state.sending,
+                            label = { Text("\u672a\u5206\u7c7b") }
+                        )
+                        availableFolders.forEach { folder ->
+                            FilterChip(
+                                selected = selectedFolderName == folder,
+                                onClick = { selectedFolderName = folder },
+                                enabled = !state.completed && !state.sending,
+                                label = { Text(folder, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -288,7 +329,7 @@ fun KnowledgeExtractionTaskScreen(
                                 }
                                 Spacer(Modifier.width(8.dp))
                                 TextButton(
-                                    onClick = viewModel::confirm,
+                                    onClick = { viewModel.confirm(selectedFolderName) },
                                     enabled = !state.completed && !state.sending
                                 ) {
                                     Icon(Icons.Default.Check, contentDescription = null)
@@ -296,6 +337,15 @@ fun KnowledgeExtractionTaskScreen(
                                         if (draft.targetKnowledgeId == null) "\u786e\u8ba4\u521b\u5efa" else "\u786e\u8ba4\u66f4\u65b0",
                                         modifier = Modifier.padding(start = 6.dp)
                                     )
+                                }
+                            }
+                            val completedKnowledgeId = state.completedKnowledgeId
+                            if (state.completed && completedKnowledgeId != null) {
+                                Spacer(Modifier.height(8.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    TextButton(onClick = { onOpenKnowledge(completedKnowledgeId) }) {
+                                        Text("\u6253\u5f00\u5bf9\u5e94\u77e5\u8bc6")
+                                    }
                                 }
                             }
                         }

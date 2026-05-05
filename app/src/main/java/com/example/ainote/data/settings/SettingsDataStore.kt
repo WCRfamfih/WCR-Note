@@ -3,6 +3,7 @@ package com.example.ainote.data.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.Preferences
@@ -40,9 +41,12 @@ class SettingsDataStore(private val context: Context) {
             completionAfterLineCount = prefs[Keys.CompletionAfterLineCount] ?: 2,
             themeMode = ThemeMode.from(prefs[Keys.ThemeMode] ?: ThemeMode.System.name),
             accentColorPreset = AccentColorPreset.from(prefs[Keys.AccentColorPreset] ?: AccentColorPreset.Violet.name),
+            accentBrightnessOffset = prefs[Keys.AccentBrightnessOffset] ?: 0f,
+            accentSaturationFactor = prefs[Keys.AccentSaturationFactor] ?: 1f,
             editorTextSizeSp = prefs[Keys.EditorTextSizeSp] ?: 18,
             editorLineSpacingPercent = prefs[Keys.EditorLineSpacingPercent] ?: 140,
             editorLetterSpacingTenthSp = prefs[Keys.EditorLetterSpacingTenthSp] ?: 0,
+            editorPaginationEnabled = prefs[Keys.EditorPaginationEnabled] ?: false,
             editorFontPreset = EditorFontPreset.from(prefs[Keys.EditorFontPreset]),
             customEditorFontUri = prefs[Keys.CustomEditorFontUri] ?: "",
             customEditorFontLabel = prefs[Keys.CustomEditorFontLabel] ?: "",
@@ -50,6 +54,7 @@ class SettingsDataStore(private val context: Context) {
             showCompletionErrorToast = prefs[Keys.ShowCompletionErrorToast] ?: true,
             knowledgeBaseEnabled = prefs[Keys.KnowledgeBaseEnabled] ?: false,
             knowledgeSendLimit = prefs[Keys.KnowledgeSendLimit] ?: 5,
+            recentEditableSettingKeys = readRecentEditableSettingKeys(prefs[Keys.RecentEditableSettings]),
             documentDirectoryUri = prefs[Keys.DocumentDirectoryUri] ?: "",
             noteSortField = NoteSortField.from(prefs[Keys.NoteSortField] ?: NoteSortField.Time.name),
             noteSortDirection = NoteSortDirection.from(prefs[Keys.NoteSortDirection] ?: NoteSortDirection.Descending.name)
@@ -70,6 +75,16 @@ class SettingsDataStore(private val context: Context) {
             ?.map { it.trim() }
             ?.filter { it.isNotBlank() }
             ?.distinct()
+            ?: emptyList()
+    }
+
+    private fun readRecentEditableSettingKeys(raw: String?): List<String> {
+        return raw
+            ?.split('\n')
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.distinct()
+            ?.take(5)
             ?: emptyList()
     }
 
@@ -100,20 +115,23 @@ class SettingsDataStore(private val context: Context) {
     suspend fun updateManualCompletionPresetId(value: String) = updateString(Keys.ManualCompletionPresetId, value)
     suspend fun updateAiToolPresetId(value: String) = updateString(Keys.AiToolPresetId, value)
 
-    suspend fun updateAutoCompletionEnabled(value: Boolean) = updateBoolean(Keys.AutoCompletionEnabled, value)
-    suspend fun updatePreferChineseAutoCompletion(value: Boolean) = updateBoolean(Keys.PreferChineseAutoCompletion, value)
-    suspend fun updateSkipBlankLineAutoCompletion(value: Boolean) = updateBoolean(Keys.SkipBlankLineAutoCompletion, value)
-    suspend fun updateAutoCompleteOnlyOnContentChange(value: Boolean) = updateBoolean(Keys.AutoCompleteOnlyOnContentChange, value)
-    suspend fun updateCompletionDelayMs(value: Long) = updateLong(Keys.CompletionDelayMs, value)
-    suspend fun updateMaxCompletionLength(value: Int) = updateInt(Keys.MaxCompletionLength, value)
-    suspend fun updateUseFullNoteContext(value: Boolean) = updateBoolean(Keys.UseFullNoteContext, value)
-    suspend fun updateCompletionBeforeLineCount(value: Int) = updateInt(Keys.CompletionBeforeLineCount, value)
-    suspend fun updateCompletionAfterLineCount(value: Int) = updateInt(Keys.CompletionAfterLineCount, value)
+    suspend fun updateAutoCompletionEnabled(value: Boolean) = updateTrackedBoolean(Keys.AutoCompletionEnabled, value, EditableSettingKeys.AutoCompletionEnabled)
+    suspend fun updatePreferChineseAutoCompletion(value: Boolean) = updateTrackedBoolean(Keys.PreferChineseAutoCompletion, value, EditableSettingKeys.PreferChineseAutoCompletion)
+    suspend fun updateSkipBlankLineAutoCompletion(value: Boolean) = updateTrackedBoolean(Keys.SkipBlankLineAutoCompletion, value, EditableSettingKeys.SkipBlankLineAutoCompletion)
+    suspend fun updateAutoCompleteOnlyOnContentChange(value: Boolean) = updateTrackedBoolean(Keys.AutoCompleteOnlyOnContentChange, value, EditableSettingKeys.AutoCompleteOnlyOnContentChange)
+    suspend fun updateCompletionDelayMs(value: Long) = updateTrackedLong(Keys.CompletionDelayMs, value, EditableSettingKeys.CompletionDelayMs)
+    suspend fun updateMaxCompletionLength(value: Int) = updateTrackedInt(Keys.MaxCompletionLength, value, EditableSettingKeys.MaxCompletionLength)
+    suspend fun updateUseFullNoteContext(value: Boolean) = updateTrackedBoolean(Keys.UseFullNoteContext, value, EditableSettingKeys.UseFullNoteContext)
+    suspend fun updateCompletionBeforeLineCount(value: Int) = updateTrackedInt(Keys.CompletionBeforeLineCount, value, EditableSettingKeys.CompletionBeforeLineCount)
+    suspend fun updateCompletionAfterLineCount(value: Int) = updateTrackedInt(Keys.CompletionAfterLineCount, value, EditableSettingKeys.CompletionAfterLineCount)
     suspend fun updateThemeMode(value: ThemeMode) = updateString(Keys.ThemeMode, value.name)
     suspend fun updateAccentColorPreset(value: AccentColorPreset) = updateString(Keys.AccentColorPreset, value.name)
-    suspend fun updateEditorTextSizeSp(value: Int) = updateInt(Keys.EditorTextSizeSp, value)
-    suspend fun updateEditorLineSpacingPercent(value: Int) = updateInt(Keys.EditorLineSpacingPercent, value)
-    suspend fun updateEditorLetterSpacingTenthSp(value: Int) = updateInt(Keys.EditorLetterSpacingTenthSp, value)
+    suspend fun updateAccentBrightnessOffset(value: Float) = updateTrackedFloat(Keys.AccentBrightnessOffset, value.coerceIn(-0.25f, 0.25f), EditableSettingKeys.AccentBrightnessOffset)
+    suspend fun updateAccentSaturationFactor(value: Float) = updateTrackedFloat(Keys.AccentSaturationFactor, value.coerceIn(0.5f, 1.5f), EditableSettingKeys.AccentSaturationFactor)
+    suspend fun updateEditorTextSizeSp(value: Int) = updateTrackedInt(Keys.EditorTextSizeSp, value, EditableSettingKeys.EditorTextSizeSp)
+    suspend fun updateEditorLineSpacingPercent(value: Int) = updateTrackedInt(Keys.EditorLineSpacingPercent, value, EditableSettingKeys.EditorLineSpacingPercent)
+    suspend fun updateEditorLetterSpacingTenthSp(value: Int) = updateTrackedInt(Keys.EditorLetterSpacingTenthSp, value, EditableSettingKeys.EditorLetterSpacingTenthSp)
+    suspend fun updateEditorPaginationEnabled(value: Boolean) = updateTrackedBoolean(Keys.EditorPaginationEnabled, value, EditableSettingKeys.EditorPaginationEnabled)
     suspend fun updateEditorFontPreset(value: EditorFontPreset) = updateString(Keys.EditorFontPreset, value.name)
     suspend fun updateCustomEditorFont(uri: String, label: String) {
         context.settingsDataStore.edit {
@@ -131,10 +149,10 @@ class SettingsDataStore(private val context: Context) {
             }
         }
     }
-    suspend fun updateShowMarkdownMarkers(value: Boolean) = updateBoolean(Keys.ShowMarkdownMarkers, value)
-    suspend fun updateShowCompletionErrorToast(value: Boolean) = updateBoolean(Keys.ShowCompletionErrorToast, value)
-    suspend fun updateKnowledgeBaseEnabled(value: Boolean) = updateBoolean(Keys.KnowledgeBaseEnabled, value)
-    suspend fun updateKnowledgeSendLimit(value: Int) = updateInt(Keys.KnowledgeSendLimit, value.coerceAtLeast(1))
+    suspend fun updateShowMarkdownMarkers(value: Boolean) = updateTrackedBoolean(Keys.ShowMarkdownMarkers, value, EditableSettingKeys.ShowMarkdownMarkers)
+    suspend fun updateShowCompletionErrorToast(value: Boolean) = updateTrackedBoolean(Keys.ShowCompletionErrorToast, value, EditableSettingKeys.ShowCompletionErrorToast)
+    suspend fun updateKnowledgeBaseEnabled(value: Boolean) = updateTrackedBoolean(Keys.KnowledgeBaseEnabled, value, EditableSettingKeys.KnowledgeBaseEnabled)
+    suspend fun updateKnowledgeSendLimit(value: Int) = updateTrackedInt(Keys.KnowledgeSendLimit, value.coerceAtLeast(1), EditableSettingKeys.KnowledgeSendLimit)
     suspend fun updateDocumentDirectoryUri(value: String) = updateString(Keys.DocumentDirectoryUri, value)
     suspend fun updateNoteSortField(value: NoteSortField) = updateString(Keys.NoteSortField, value.name)
     suspend fun updateNoteSortDirection(value: NoteSortDirection) = updateString(Keys.NoteSortDirection, value.name)
@@ -179,12 +197,61 @@ class SettingsDataStore(private val context: Context) {
         context.settingsDataStore.edit { it[key] = value }
     }
 
+    private suspend fun updateTrackedBoolean(
+        key: androidx.datastore.preferences.core.Preferences.Key<Boolean>,
+        value: Boolean,
+        settingKey: String
+    ) {
+        context.settingsDataStore.edit {
+            it[key] = value
+            it[Keys.RecentEditableSettings] = reorderRecentEditableSettings(it[Keys.RecentEditableSettings], settingKey)
+        }
+    }
+
     private suspend fun updateLong(key: androidx.datastore.preferences.core.Preferences.Key<Long>, value: Long) {
         context.settingsDataStore.edit { it[key] = value }
     }
 
+    private suspend fun updateTrackedLong(
+        key: androidx.datastore.preferences.core.Preferences.Key<Long>,
+        value: Long,
+        settingKey: String
+    ) {
+        context.settingsDataStore.edit {
+            it[key] = value
+            it[Keys.RecentEditableSettings] = reorderRecentEditableSettings(it[Keys.RecentEditableSettings], settingKey)
+        }
+    }
+
     private suspend fun updateInt(key: androidx.datastore.preferences.core.Preferences.Key<Int>, value: Int) {
         context.settingsDataStore.edit { it[key] = value }
+    }
+
+    private suspend fun updateTrackedFloat(
+        key: androidx.datastore.preferences.core.Preferences.Key<Float>,
+        value: Float,
+        settingKey: String
+    ) {
+        context.settingsDataStore.edit {
+            it[key] = value
+            it[Keys.RecentEditableSettings] = reorderRecentEditableSettings(it[Keys.RecentEditableSettings], settingKey)
+        }
+    }
+
+    private suspend fun updateTrackedInt(
+        key: androidx.datastore.preferences.core.Preferences.Key<Int>,
+        value: Int,
+        settingKey: String
+    ) {
+        context.settingsDataStore.edit {
+            it[key] = value
+            it[Keys.RecentEditableSettings] = reorderRecentEditableSettings(it[Keys.RecentEditableSettings], settingKey)
+        }
+    }
+
+    private fun reorderRecentEditableSettings(raw: String?, settingKey: String): String {
+        val existing = readRecentEditableSettingKeys(raw).filterNot { it == settingKey }
+        return (listOf(settingKey) + existing).take(5).joinToString("\n")
     }
 
     private fun legacyPresetFromPrefs(prefs: Preferences): AiServicePreset {
@@ -265,9 +332,12 @@ class SettingsDataStore(private val context: Context) {
         val CompletionAfterLineCount = intPreferencesKey("completion_after_line_count")
         val ThemeMode = stringPreferencesKey("theme_mode")
         val AccentColorPreset = stringPreferencesKey("accent_color_preset")
+        val AccentBrightnessOffset = floatPreferencesKey("accent_brightness_offset")
+        val AccentSaturationFactor = floatPreferencesKey("accent_saturation_factor")
         val EditorTextSizeSp = intPreferencesKey("editor_text_size_sp")
         val EditorLineSpacingPercent = intPreferencesKey("editor_line_spacing_percent")
         val EditorLetterSpacingTenthSp = intPreferencesKey("editor_letter_spacing_tenth_sp")
+        val EditorPaginationEnabled = booleanPreferencesKey("editor_pagination_enabled")
         val EditorFontPreset = stringPreferencesKey("editor_font_preset")
         val CustomEditorFontUri = stringPreferencesKey("custom_editor_font_uri")
         val CustomEditorFontLabel = stringPreferencesKey("custom_editor_font_label")
@@ -275,6 +345,7 @@ class SettingsDataStore(private val context: Context) {
         val ShowCompletionErrorToast = booleanPreferencesKey("show_completion_error_toast")
         val KnowledgeBaseEnabled = booleanPreferencesKey("knowledge_base_enabled")
         val KnowledgeSendLimit = intPreferencesKey("knowledge_send_limit")
+        val RecentEditableSettings = stringPreferencesKey("recent_editable_settings")
         val DocumentDirectoryUri = stringPreferencesKey("document_directory_uri")
         val Folders = stringPreferencesKey("folders")
         val KnowledgeFolders = stringPreferencesKey("knowledge_folders")

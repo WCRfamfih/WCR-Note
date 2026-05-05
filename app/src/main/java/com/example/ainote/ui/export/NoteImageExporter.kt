@@ -19,6 +19,7 @@ import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
 import androidx.core.graphics.createBitmap
 import androidx.core.content.FileProvider
+import com.example.ainote.data.settings.EditorFontPreset
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -30,22 +31,33 @@ object NoteImageExporter {
         title: String,
         content: String,
         backgroundColor: Int,
-        textColor: Int
+        textColor: Int,
+        style: NoteImageRenderStyle,
+        paged: Boolean = false
     ): Result<ExportedNoteImage> = runCatching {
-        val fileName = imageFileName()
-        val bitmap = renderNoteBitmap(
+        val baseFileName = imageFileName().removeSuffix(".png")
+        val bitmaps = renderNoteBitmaps(
+            context = context,
             title = title.ifBlank { "\u672a\u547d\u540d\u7b14\u8bb0" },
             content = content,
             backgroundColor = backgroundColor,
-            textColor = textColor
+            textColor = textColor,
+            style = style,
+            paged = paged
         )
         val directory = File(context.cacheDir, "shared_images").apply { mkdirs() }
-        val file = File(directory, fileName)
-        file.outputStream().use { output ->
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "\u56fe\u7247\u5199\u5165\u5931\u8d25" }
+        val files = bitmaps.mapIndexed { index, bitmap ->
+            val fileName = if (bitmaps.size == 1) "$baseFileName.png" else "$baseFileName-p${index + 1}.png"
+            val file = File(directory, fileName)
+            file.outputStream().use { output ->
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "\u56fe\u7247\u5199\u5165\u5931\u8d25" }
+            }
+            file
         }
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        ExportedNoteImage(uri = uri, fileName = fileName)
+        ExportedNoteImage(
+            uris = files.map { file -> FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file) },
+            fileNames = files.map(File::getName)
+        )
     }
 
     fun saveNoteImage(
@@ -53,14 +65,18 @@ object NoteImageExporter {
         title: String,
         content: String,
         backgroundColor: Int,
-        textColor: Int
+        textColor: Int,
+        style: NoteImageRenderStyle
     ): Result<String> = runCatching {
-        val bitmap = renderNoteBitmap(
+        val bitmap = renderNoteBitmaps(
+            context = context,
             title = title.ifBlank { "\u672a\u547d\u540d\u7b14\u8bb0" },
             content = content,
             backgroundColor = backgroundColor,
-            textColor = textColor
-        )
+            textColor = textColor,
+            style = style,
+            paged = false
+        ).first()
         val fileName = imageFileName()
         saveBitmapToGallery(context, bitmap, fileName)
         fileName
@@ -107,42 +123,100 @@ object NoteImageExporter {
     private fun imageFileName(): String =
         "note-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault()).format(Date())}.png"
 
-    private fun renderNoteBitmap(
+    private fun renderNoteBitmaps(
+        context: Context,
         title: String,
         content: String,
         backgroundColor: Int,
-        textColor: Int
-    ): Bitmap {
+        textColor: Int,
+        style: NoteImageRenderStyle,
+        paged: Boolean
+    ): List<Bitmap> {
         val width = 1440
         val horizontalPadding = 96
         val topPadding = 96
         val bottomPadding = 96
+        val titleSpacing = 48
         val bodyWidth = width - horizontalPadding * 2
+        val typeface = loadTypeface(context, style)
+        val bodyTextSizePx = style.editorTextSizeSp * 2.22f
+        val titleTextSizePx = bodyTextSizePx * 1.3f
+        val bodyLineSpacingMultiplier = style.editorLineSpacingPercent / 100f
+        val titleLineSpacingMultiplier = (style.editorLineSpacingPercent / 100f).coerceIn(1f, 1.5f)
         val titlePaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            textSize = 54f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = titleTextSizePx
+            this.typeface = typeface?.let { Typeface.create(it, Typeface.BOLD) } ?: Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            letterSpacing = style.editorLetterSpacingSp / textSize
         }
         val bodyPaint = TextPaint(TextPaint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            textSize = 40f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            textSize = bodyTextSizePx
+            this.typeface = typeface ?: Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            letterSpacing = style.editorLetterSpacingSp / textSize
         }
-        val titleLayout = staticLayout(SpannableStringBuilder(title), titlePaint, bodyWidth, 1.18f)
-        val bodyLayout = staticLayout(markdownSpannable(content), bodyPaint, bodyWidth, 1.32f)
-        val height = (topPadding + titleLayout.height + 48 + bodyLayout.height + bottomPadding)
-            .coerceAtLeast(720)
-            .coerceAtMost(24000)
-        val bitmap = createBitmap(width, height)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(backgroundColor)
-        canvas.save()
-        canvas.translate(horizontalPadding.toFloat(), topPadding.toFloat())
-        titleLayout.draw(canvas)
-        canvas.translate(0f, titleLayout.height + 48f)
-        bodyLayout.draw(canvas)
-        canvas.restore()
-        return bitmap
+        val titleLayout = staticLayout(SpannableStringBuilder(title), titlePaint, bodyWidth, titleLineSpacingMultiplier)
+        val bodyText = if (style.renderMarkdown) markdownSpannable(content) else SpannableStringBuilder(content)
+        val bodyLayout = staticLayout(bodyText, bodyPaint, bodyWidth, bodyLineSpacingMultiplier)
+        if (!paged) {
+            val height = (topPadding + titleLayout.height + titleSpacing + bodyLayout.height + bottomPadding)
+                .coerceAtLeast(720)
+                .coerceAtMost(24000)
+            val bitmap = createBitmap(width, height)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(backgroundColor)
+            canvas.save()
+            canvas.translate(horizontalPadding.toFloat(), topPadding.toFloat())
+            titleLayout.draw(canvas)
+            canvas.translate(0f, titleLayout.height + titleSpacing.toFloat())
+            bodyLayout.draw(canvas)
+            canvas.restore()
+            return listOf(bitmap)
+        }
+        val pageHeight = 1920
+        val firstBodyViewport = (pageHeight - topPadding - bottomPadding - titleLayout.height - titleSpacing).coerceAtLeast(320)
+        val bodyViewport = (pageHeight - topPadding - bottomPadding).coerceAtLeast(320)
+        if (bodyLayout.lineCount == 0) {
+            val bitmap = createBitmap(width, pageHeight)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(backgroundColor)
+            canvas.save()
+            canvas.translate(horizontalPadding.toFloat(), topPadding.toFloat())
+            titleLayout.draw(canvas)
+            canvas.restore()
+            return listOf(bitmap)
+        }
+        val pageLineRanges = computePagedLineRanges(bodyLayout, firstBodyViewport, bodyViewport)
+        return pageLineRanges.mapIndexed { pageIndex, lineRange ->
+            val bitmap = createBitmap(width, pageHeight)
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(backgroundColor)
+            canvas.save()
+            canvas.translate(horizontalPadding.toFloat(), topPadding.toFloat())
+            if (pageIndex == 0) {
+                titleLayout.draw(canvas)
+                canvas.translate(0f, titleLayout.height + titleSpacing.toFloat())
+                drawLayoutPage(
+                    canvas = canvas,
+                    layout = bodyLayout,
+                    bodyWidth = bodyWidth,
+                    startLine = lineRange.first,
+                    endLine = lineRange.last,
+                    viewportHeight = firstBodyViewport
+                )
+            } else {
+                drawLayoutPage(
+                    canvas = canvas,
+                    layout = bodyLayout,
+                    bodyWidth = bodyWidth,
+                    startLine = lineRange.first,
+                    endLine = lineRange.last,
+                    viewportHeight = bodyViewport
+                )
+            }
+            canvas.restore()
+            bitmap
+        }
     }
 
     private fun staticLayout(
@@ -156,6 +230,68 @@ object NoteImageExporter {
             .setLineSpacing(0f, spacingMultiplier)
             .setIncludePad(true)
             .build()
+    }
+
+    private fun computePagedLineRanges(
+        layout: StaticLayout,
+        firstViewportHeight: Int,
+        otherViewportHeight: Int
+    ): List<IntRange> {
+        if (layout.lineCount == 0) return listOf(0..0)
+        val ranges = mutableListOf<IntRange>()
+        var startLine = 0
+        while (startLine < layout.lineCount) {
+            val viewportHeight = if (ranges.isEmpty()) firstViewportHeight else otherViewportHeight
+            val pageTop = layout.getLineTop(startLine)
+            var endLine = startLine
+            while (endLine < layout.lineCount) {
+                val bottom = layout.getLineBottom(endLine)
+                if (bottom - pageTop > viewportHeight && endLine > startLine) break
+                if (bottom - pageTop > viewportHeight) break
+                endLine++
+            }
+            val lastLine = if (endLine == startLine) startLine else endLine - 1
+            ranges += startLine..lastLine
+            startLine = lastLine + 1
+        }
+        return ranges
+    }
+
+    private fun drawLayoutPage(
+        canvas: Canvas,
+        layout: StaticLayout,
+        bodyWidth: Int,
+        startLine: Int,
+        endLine: Int,
+        viewportHeight: Int
+    ) {
+        val top = layout.getLineTop(startLine)
+        canvas.save()
+        canvas.clipRect(0, 0, bodyWidth, viewportHeight)
+        canvas.translate(0f, -top.toFloat())
+        layout.draw(canvas)
+        canvas.restore()
+    }
+
+    private fun loadTypeface(
+        context: Context,
+        style: NoteImageRenderStyle
+    ): Typeface? {
+        if (style.editorFontPreset == EditorFontPreset.Custom && style.customEditorFontUri.isNotBlank()) {
+            runCatching {
+                context.contentResolver.openFileDescriptor(Uri.parse(style.customEditorFontUri), "r")?.use { descriptor ->
+                    Typeface.Builder(descriptor.fileDescriptor).build()
+                }
+            }.getOrNull()?.let { return it }
+        }
+        return when (style.editorFontPreset) {
+            EditorFontPreset.System -> Typeface.DEFAULT
+            EditorFontPreset.Sans -> Typeface.SANS_SERIF
+            EditorFontPreset.Serif -> Typeface.SERIF
+            EditorFontPreset.Monospace -> Typeface.MONOSPACE
+            EditorFontPreset.Cursive -> Typeface.create("cursive", Typeface.NORMAL)
+            EditorFontPreset.Custom -> Typeface.DEFAULT
+        }
     }
 
     private fun markdownSpannable(input: String): SpannableStringBuilder {
@@ -242,7 +378,19 @@ object NoteImageExporter {
     }
 }
 
-data class ExportedNoteImage(
-    val uri: Uri,
-    val fileName: String
+data class NoteImageRenderStyle(
+    val editorTextSizeSp: Int,
+    val editorLineSpacingPercent: Int,
+    val editorLetterSpacingSp: Float,
+    val editorFontPreset: EditorFontPreset,
+    val customEditorFontUri: String,
+    val renderMarkdown: Boolean
 )
+
+data class ExportedNoteImage(
+    val uris: List<Uri>,
+    val fileNames: List<String>
+) {
+    val primaryUri: Uri get() = uris.first()
+    val primaryFileName: String get() = fileNames.first()
+}

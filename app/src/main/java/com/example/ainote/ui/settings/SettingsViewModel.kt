@@ -8,6 +8,7 @@ import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.AiServicePreset
+import com.example.ainote.data.settings.EditableSettingKeys
 import com.example.ainote.data.settings.EditorFontPreset
 import com.example.ainote.data.settings.NoteSortDirection
 import com.example.ainote.data.settings.NoteSortField
@@ -77,9 +78,12 @@ class SettingsViewModel(
     fun updateCompletionAfterLineCount(value: Int) = launch { dataStore.updateCompletionAfterLineCount(value) }
     fun updateThemeMode(value: ThemeMode) = launch { dataStore.updateThemeMode(value) }
     fun updateAccentColorPreset(value: AccentColorPreset) = launch { dataStore.updateAccentColorPreset(value) }
+    fun updateAccentBrightnessOffset(value: Float) = launch { dataStore.updateAccentBrightnessOffset(value) }
+    fun updateAccentSaturationFactor(value: Float) = launch { dataStore.updateAccentSaturationFactor(value) }
     fun updateEditorTextSizeSp(value: Int) = launch { dataStore.updateEditorTextSizeSp(value) }
     fun updateEditorLineSpacingPercent(value: Int) = launch { dataStore.updateEditorLineSpacingPercent(value) }
     fun updateEditorLetterSpacingTenthSp(value: Int) = launch { dataStore.updateEditorLetterSpacingTenthSp(value) }
+    fun updateEditorPaginationEnabled(value: Boolean) = launch { dataStore.updateEditorPaginationEnabled(value) }
     fun updateEditorFontPreset(value: EditorFontPreset) = launch { dataStore.updateEditorFontPreset(value) }
     fun updateCustomEditorFont(uri: String, label: String) = launch { dataStore.updateCustomEditorFont(uri, label) }
     fun clearCustomEditorFont() = launch { dataStore.clearCustomEditorFont() }
@@ -114,6 +118,28 @@ class SettingsViewModel(
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }
     }
+
+    fun isQuickEditableSetting(key: String): Boolean = key in setOf(
+        EditableSettingKeys.AutoCompletionEnabled,
+        EditableSettingKeys.PreferChineseAutoCompletion,
+        EditableSettingKeys.SkipBlankLineAutoCompletion,
+        EditableSettingKeys.AutoCompleteOnlyOnContentChange,
+        EditableSettingKeys.CompletionDelayMs,
+        EditableSettingKeys.MaxCompletionLength,
+        EditableSettingKeys.UseFullNoteContext,
+        EditableSettingKeys.CompletionBeforeLineCount,
+        EditableSettingKeys.CompletionAfterLineCount,
+        EditableSettingKeys.EditorTextSizeSp,
+        EditableSettingKeys.EditorLineSpacingPercent,
+        EditableSettingKeys.EditorLetterSpacingTenthSp,
+        EditableSettingKeys.EditorPaginationEnabled,
+        EditableSettingKeys.AccentBrightnessOffset,
+        EditableSettingKeys.AccentSaturationFactor,
+        EditableSettingKeys.ShowMarkdownMarkers,
+        EditableSettingKeys.ShowCompletionErrorToast,
+        EditableSettingKeys.KnowledgeBaseEnabled,
+        EditableSettingKeys.KnowledgeSendLimit
+    )
 
     class Factory(
         private val dataStore: SettingsDataStore,

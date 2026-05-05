@@ -13,6 +13,7 @@ data class NoteEntity(
     val updatedAt: Long,
     val folderName: String = "",
     val contentType: String = "note",
+    val coverImageUri: String = "",
     val isGlobalKnowledge: Boolean = false,
     val pinned: Boolean = false,
     val deleted: Boolean = false

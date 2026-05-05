@@ -17,6 +17,28 @@ enum class AiPresetUsage {
     AiTool
 }
 
+object EditableSettingKeys {
+    const val AutoCompletionEnabled = "auto_completion_enabled"
+    const val PreferChineseAutoCompletion = "prefer_chinese_auto_completion"
+    const val SkipBlankLineAutoCompletion = "skip_blank_line_auto_completion"
+    const val AutoCompleteOnlyOnContentChange = "auto_complete_only_on_content_change"
+    const val CompletionDelayMs = "completion_delay_ms"
+    const val MaxCompletionLength = "max_completion_length"
+    const val UseFullNoteContext = "use_full_note_context"
+    const val CompletionBeforeLineCount = "completion_before_line_count"
+    const val CompletionAfterLineCount = "completion_after_line_count"
+    const val EditorTextSizeSp = "editor_text_size_sp"
+    const val EditorLineSpacingPercent = "editor_line_spacing_percent"
+    const val EditorLetterSpacingTenthSp = "editor_letter_spacing_tenth_sp"
+    const val EditorPaginationEnabled = "editor_pagination_enabled"
+    const val AccentBrightnessOffset = "accent_brightness_offset"
+    const val AccentSaturationFactor = "accent_saturation_factor"
+    const val ShowMarkdownMarkers = "show_markdown_markers"
+    const val ShowCompletionErrorToast = "show_completion_error_toast"
+    const val KnowledgeBaseEnabled = "knowledge_base_enabled"
+    const val KnowledgeSendLimit = "knowledge_send_limit"
+}
+
 enum class EditorFontPreset(val label: String) {
     System("\u8ddf\u968f\u7cfb\u7edf"),
     Sans("\u65e0\u886c\u7ebf"),
@@ -52,9 +74,12 @@ data class UserSettings(
     val completionAfterLineCount: Int = 2,
     val themeMode: ThemeMode = ThemeMode.System,
     val accentColorPreset: AccentColorPreset = AccentColorPreset.Violet,
+    val accentBrightnessOffset: Float = 0f,
+    val accentSaturationFactor: Float = 1f,
     val editorTextSizeSp: Int = 18,
     val editorLineSpacingPercent: Int = 140,
     val editorLetterSpacingTenthSp: Int = 0,
+    val editorPaginationEnabled: Boolean = false,
     val editorFontPreset: EditorFontPreset = EditorFontPreset.System,
     val customEditorFontUri: String = "",
     val customEditorFontLabel: String = "",
@@ -62,6 +87,7 @@ data class UserSettings(
     val showCompletionErrorToast: Boolean = true,
     val knowledgeBaseEnabled: Boolean = false,
     val knowledgeSendLimit: Int = 5,
+    val recentEditableSettingKeys: List<String> = emptyList(),
     val documentDirectoryUri: String = "",
     val noteSortField: NoteSortField = NoteSortField.Time,
     val noteSortDirection: NoteSortDirection = NoteSortDirection.Descending

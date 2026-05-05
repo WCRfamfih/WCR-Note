@@ -32,6 +32,7 @@ data class KnowledgeExtractionTaskUiState(
     val sending: Boolean = false,
     val draft: KnowledgeExtractionDraft? = null,
     val completed: Boolean = false,
+    val completedKnowledgeId: Long? = null,
     val statusMessage: String? = null,
     val errorMessage: String? = null
 )
@@ -177,23 +178,25 @@ class KnowledgeExtractionTaskViewModel(
         send()
     }
 
-    fun confirm() {
+    fun confirm(targetFolderName: String = "") {
         val state = uiState.value
         val draft = state.draft ?: return
         if (state.completed) return
         taskState.update { it.copy(sending = true, errorMessage = null) }
         viewModelScope.launch {
-            runCatching {
+            runCatching<Long> {
                 if (draft.targetKnowledgeId == null) {
-                    noteRepository.createKnowledge(draft.title, draft.content)
+                    noteRepository.createKnowledge(draft.title, draft.content, folderName = targetFolderName)
                 } else {
                     noteRepository.overwriteKnowledge(draft.targetKnowledgeId, draft.title, draft.content)
+                    draft.targetKnowledgeId
                 }
-            }.onSuccess {
+            }.onSuccess { knowledgeId ->
                 taskState.update {
                     it.copy(
                         sending = false,
                         completed = true,
+                        completedKnowledgeId = knowledgeId,
                         statusMessage = "\u4efb\u52a1\u5df2\u5b8c\u6210\u3002",
                         errorMessage = null
                     )

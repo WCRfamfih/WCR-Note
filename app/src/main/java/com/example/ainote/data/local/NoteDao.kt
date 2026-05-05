@@ -27,6 +27,9 @@ interface NoteDao {
     @Query("UPDATE notes SET folderName = :folderName, updatedAt = :updatedAt WHERE id = :id")
     suspend fun moveNote(id: Long, folderName: String, updatedAt: Long)
 
+    @Query("UPDATE notes SET coverImageUri = :coverImageUri, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateCover(id: Long, coverImageUri: String, updatedAt: Long)
+
     @Query("SELECT * FROM notes WHERE deleted = 0 ORDER BY pinned DESC, updatedAt DESC")
     fun observeNotes(): Flow<List<NoteEntity>>
 

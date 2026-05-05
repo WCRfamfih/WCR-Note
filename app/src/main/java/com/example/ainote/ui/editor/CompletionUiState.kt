@@ -1,9 +1,11 @@
 package com.example.ainote.ui.editor
 
+import androidx.compose.ui.text.TextRange
 import com.example.ainote.domain.model.AiActionRequest
 
 data class CompletionUiState(
     val suggestion: String? = null,
+    val previewRange: TextRange? = null,
     val loading: Boolean = false,
     val errorMessage: String? = null
 )

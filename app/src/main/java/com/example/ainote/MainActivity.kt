@@ -17,7 +17,9 @@ class MainActivity : ComponentActivity() {
             val settings by container.settingsDataStore.settings.collectAsState(initial = UserSettings())
             AiNoteTheme(
                 themeMode = settings.themeMode,
-                accentColorPreset = settings.accentColorPreset
+                accentColorPreset = settings.accentColorPreset,
+                accentBrightnessOffset = settings.accentBrightnessOffset,
+                accentSaturationFactor = settings.accentSaturationFactor
             ) {
                 AppNavGraph(container = container)
             }

@@ -56,6 +56,7 @@ import com.example.ainote.data.repository.NoteRepository
 import com.example.ainote.data.settings.AccentColorPreset
 import com.example.ainote.data.settings.AiProviderPreset
 import com.example.ainote.data.settings.AiServicePreset
+import com.example.ainote.data.settings.EditableSettingKeys
 import com.example.ainote.data.settings.EditorFontPreset
 import com.example.ainote.data.settings.NoteSortDirection
 import com.example.ainote.data.settings.NoteSortField
@@ -104,6 +105,21 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            val recentKeys = settings.recentEditableSettingKeys.filter(viewModel::isQuickEditableSetting)
+            if (recentKeys.isNotEmpty()) {
+                Text("????", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(8.dp))
+                recentKeys.forEach { key ->
+                    RecentSettingCard(
+                        key = key,
+                        settings = settings,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                Spacer(Modifier.height(10.dp))
+            }
             SettingsEntry("AI 设置", "服务商、预设、自动补全和上下文规则。", onOpenAiSettings)
             Spacer(Modifier.height(12.dp))
             SettingsEntry("显示设置", "主题、强调色、字号、间距和字体。", onOpenDisplaySettings)
@@ -204,10 +220,10 @@ fun DisplaySettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("显示设置") },
+                title = { Text("????") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "??")
                     }
                 }
             )
@@ -220,7 +236,7 @@ fun DisplaySettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Text("颜色主题", style = MaterialTheme.typography.titleSmall)
+            Text("????", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 ThemeMode.entries.forEach { mode ->
@@ -233,7 +249,7 @@ fun DisplaySettingsScreen(
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Text("强调色预设", style = MaterialTheme.typography.titleSmall)
+            Text("?????", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -249,8 +265,24 @@ fun DisplaySettingsScreen(
                     )
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            Text("???${"%.2f".format(settings.accentBrightnessOffset)}", style = MaterialTheme.typography.titleSmall)
+            Slider(
+                value = settings.accentBrightnessOffset,
+                onValueChange = viewModel::updateAccentBrightnessOffset,
+                valueRange = -0.25f..0.25f,
+                steps = 24
+            )
+            Spacer(Modifier.height(12.dp))
+            Text("????${"%.2f".format(settings.accentSaturationFactor)}", style = MaterialTheme.typography.titleSmall)
+            Slider(
+                value = settings.accentSaturationFactor,
+                onValueChange = viewModel::updateAccentSaturationFactor,
+                valueRange = 0.5f..1.5f,
+                steps = 19
+            )
             Spacer(Modifier.height(20.dp))
-            Text("文字大小：${settings.editorTextSizeSp} sp", style = MaterialTheme.typography.titleSmall)
+            Text("?????${settings.editorTextSizeSp} sp", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.editorTextSizeSp.toFloat(),
                 onValueChange = { viewModel.updateEditorTextSizeSp(it.toInt()) },
@@ -258,7 +290,7 @@ fun DisplaySettingsScreen(
                 steps = 13
             )
             Spacer(Modifier.height(12.dp))
-            Text("行间距：${settings.editorLineSpacingPercent}%", style = MaterialTheme.typography.titleSmall)
+            Text("????${settings.editorLineSpacingPercent}%", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.editorLineSpacingPercent.toFloat(),
                 onValueChange = { viewModel.updateEditorLineSpacingPercent(it.toInt()) },
@@ -266,15 +298,22 @@ fun DisplaySettingsScreen(
                 steps = 11
             )
             Spacer(Modifier.height(12.dp))
-            Text("字间距：${settings.editorLetterSpacingTenthSp / 10f} sp", style = MaterialTheme.typography.titleSmall)
+            Text("????${settings.editorLetterSpacingTenthSp / 10f} sp", style = MaterialTheme.typography.titleSmall)
             Slider(
                 value = settings.editorLetterSpacingTenthSp.toFloat(),
                 onValueChange = { viewModel.updateEditorLetterSpacingTenthSp(it.toInt()) },
                 valueRange = 0f..12f,
                 steps = 11
             )
+            Spacer(Modifier.height(12.dp))
+            SettingSwitch(
+                title = "????",
+                description = "???????????????????????????????",
+                checked = settings.editorPaginationEnabled,
+                onCheckedChange = viewModel::updateEditorPaginationEnabled
+            )
             Spacer(Modifier.height(20.dp))
-            Text("字体", style = MaterialTheme.typography.titleSmall)
+            Text("??", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier
@@ -299,21 +338,21 @@ fun DisplaySettingsScreen(
             Spacer(Modifier.height(12.dp))
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("自定义字体", style = MaterialTheme.typography.titleSmall)
+                    Text("?????", style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = settings.customEditorFontLabel.ifBlank { "未选择字体文件。可通过系统文件选择器导入 .ttf / .otf 等字体。" },
+                        text = settings.customEditorFontLabel.ifBlank { "???????????????????? .ttf / .otf ????" },
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(12.dp))
                     Row {
                         Button(onClick = { fontPicker.launch(arrayOf("font/*", "application/octet-stream", "*/*")) }) {
-                            Text(if (settings.customEditorFontUri.isBlank()) "选择字体" else "更换字体")
+                            Text(if (settings.customEditorFontUri.isBlank()) "????" else "????")
                         }
                         if (settings.customEditorFontUri.isNotBlank()) {
                             Spacer(Modifier.padding(horizontal = 4.dp))
                             Button(onClick = viewModel::clearCustomEditorFont) {
-                                Text("清除字体")
+                                Text("????")
                             }
                         }
                     }
@@ -321,8 +360,8 @@ fun DisplaySettingsScreen(
             }
             Spacer(Modifier.height(12.dp))
             SettingSwitch(
-                title = "显示 Markdown 标记",
-                description = "编辑时显示原始 Markdown 标记，并关闭渲染效果。",
+                title = "?? Markdown ??",
+                description = "??????? Markdown ???????????",
                 checked = settings.showMarkdownMarkers,
                 onCheckedChange = viewModel::updateShowMarkdownMarkers
             )
@@ -333,6 +372,7 @@ fun DisplaySettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KnowledgeSettingsScreen(
+
     dataStore: SettingsDataStore,
     onBack: () -> Unit
 ) {
@@ -627,12 +667,15 @@ fun AiSettingsScreen(
                 )
             }
             Spacer(Modifier.height(20.dp))
-            Text("补全延迟：${settings.completionDelayMs} ms", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "自动补全触发延迟：${"%.1f".format(settings.completionDelayMs / 1000f)} s",
+                style = MaterialTheme.typography.titleSmall
+            )
             Slider(
-                value = settings.completionDelayMs.toFloat(),
-                onValueChange = { viewModel.updateCompletionDelayMs(it.toLong()) },
-                valueRange = 300f..1500f,
-                steps = 11
+                value = settings.completionDelayMs / 1000f,
+                onValueChange = { viewModel.updateCompletionDelayMs((it * 1000).toLong()) },
+                valueRange = 0f..5f,
+                steps = 49
             )
             Text("最大补全长度：${settings.maxCompletionLength} 字", style = MaterialTheme.typography.titleSmall)
             Slider(
@@ -781,4 +824,74 @@ private fun SettingSwitch(
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
+}
+
+@Composable
+private fun RecentSettingCard(
+    key: String,
+    settings: com.example.ainote.data.settings.UserSettings,
+    viewModel: SettingsViewModel,
+    modifier: Modifier = Modifier
+) {
+    Card(modifier = modifier) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            when (key) {
+                EditableSettingKeys.AutoCompletionEnabled -> SettingSwitch("????", "??????????????", settings.autoCompletionEnabled, viewModel::updateAutoCompletionEnabled)
+                EditableSettingKeys.PreferChineseAutoCompletion -> SettingSwitch("????????", "???????????????????", settings.preferChineseAutoCompletion, viewModel::updatePreferChineseAutoCompletion)
+                EditableSettingKeys.SkipBlankLineAutoCompletion -> SettingSwitch("?????", "??????????????", settings.skipBlankLineAutoCompletion, viewModel::updateSkipBlankLineAutoCompletion)
+                EditableSettingKeys.AutoCompleteOnlyOnContentChange -> SettingSwitch("????????", "??????????????", settings.autoCompleteOnlyOnContentChange, viewModel::updateAutoCompleteOnlyOnContentChange)
+                EditableSettingKeys.UseFullNoteContext -> SettingSwitch("???????", "?????????????????", settings.useFullNoteContext, viewModel::updateUseFullNoteContext)
+                EditableSettingKeys.ShowCompletionErrorToast -> SettingSwitch("?? AI ????", "?????????????????", settings.showCompletionErrorToast, viewModel::updateShowCompletionErrorToast)
+                EditableSettingKeys.KnowledgeBaseEnabled -> SettingSwitch("???????", "???????????????? AI ????", settings.knowledgeBaseEnabled, viewModel::updateKnowledgeBaseEnabled)
+                EditableSettingKeys.ShowMarkdownMarkers -> SettingSwitch("?? Markdown ??", "??????? Markdown ???????????", settings.showMarkdownMarkers, viewModel::updateShowMarkdownMarkers)
+                EditableSettingKeys.EditorPaginationEnabled -> SettingSwitch("????", "??????????????????????", settings.editorPaginationEnabled, viewModel::updateEditorPaginationEnabled)
+                EditableSettingKeys.EditorTextSizeSp -> RecentSlider("????", "${settings.editorTextSizeSp} sp", settings.editorTextSizeSp.toFloat(), { viewModel.updateEditorTextSizeSp(it.toInt()) }, 14f..28f, 13)
+                EditableSettingKeys.EditorLineSpacingPercent -> RecentSlider("???", "${settings.editorLineSpacingPercent}%", settings.editorLineSpacingPercent.toFloat(), { viewModel.updateEditorLineSpacingPercent(it.toInt()) }, 100f..220f, 11)
+                EditableSettingKeys.EditorLetterSpacingTenthSp -> RecentSlider("???", "${settings.editorLetterSpacingTenthSp / 10f} sp", settings.editorLetterSpacingTenthSp.toFloat(), { viewModel.updateEditorLetterSpacingTenthSp(it.toInt()) }, 0f..12f, 11)
+                EditableSettingKeys.AccentBrightnessOffset -> RecentSlider("?????", "${"%.2f".format(settings.accentBrightnessOffset)}", settings.accentBrightnessOffset, viewModel::updateAccentBrightnessOffset, -0.25f..0.25f, 24)
+                EditableSettingKeys.AccentSaturationFactor -> RecentSlider("??????", "${"%.2f".format(settings.accentSaturationFactor)}", settings.accentSaturationFactor, viewModel::updateAccentSaturationFactor, 0.5f..1.5f, 19)
+                EditableSettingKeys.CompletionDelayMs -> RecentSlider("????????", "${"%.1f".format(settings.completionDelayMs / 1000f)} s", settings.completionDelayMs / 1000f, { viewModel.updateCompletionDelayMs((it * 1000).toLong()) }, 0f..5f, 49)
+                EditableSettingKeys.MaxCompletionLength -> RecentSlider("??????", "${settings.maxCompletionLength} ?", settings.maxCompletionLength.toFloat(), { viewModel.updateMaxCompletionLength(it.toInt()) }, 10f..80f, 6)
+                EditableSettingKeys.CompletionBeforeLineCount -> RecentSlider("?????", settings.completionBeforeLineCount.toString(), settings.completionBeforeLineCount.toFloat(), { viewModel.updateCompletionBeforeLineCount(it.toInt()) }, 0f..20f, 19)
+                EditableSettingKeys.CompletionAfterLineCount -> RecentSlider("?????", settings.completionAfterLineCount.toString(), settings.completionAfterLineCount.toFloat(), { viewModel.updateCompletionAfterLineCount(it.toInt()) }, 0f..20f, 19)
+                EditableSettingKeys.KnowledgeSendLimit -> RecentNumberField("????????", settings.knowledgeSendLimit.toString()) { digits ->
+                    digits.toIntOrNull()?.let(viewModel::updateKnowledgeSendLimit)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSlider(
+
+    title: String,
+    valueLabel: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int
+) {
+    Text("$title：$valueLabel", style = MaterialTheme.typography.titleSmall)
+    Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
+}
+
+@Composable
+private fun RecentNumberField(
+    title: String,
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    var text by remember(value) { mutableStateOf(value) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { next ->
+            val digits = next.filter(Char::isDigit)
+            text = digits
+            onValueChange(digits)
+        },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(title) },
+        singleLine = true
+    )
 }
