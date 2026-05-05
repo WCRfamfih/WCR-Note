@@ -29,6 +29,7 @@ import com.example.ainote.ui.notes.CardOpenTransitionOrigin
 import com.example.ainote.ui.notes.NoteListScreen
 import com.example.ainote.ui.settings.AiDebugLogScreen
 import com.example.ainote.ui.settings.AiSettingsScreen
+import com.example.ainote.ui.settings.AboutSettingsScreen
 import com.example.ainote.ui.settings.DisplaySettingsScreen
 import com.example.ainote.ui.settings.ExperimentalSettingsScreen
 import com.example.ainote.ui.settings.SettingsScreen
@@ -44,6 +45,7 @@ private const val KnowledgeSettingsRoute = "knowledge_settings"
 private const val AiSettingsRoute = "ai_settings"
 private const val AiDebugLogRoute = "ai_debug_log"
 private const val ExperimentalSettingsRoute = "experimental_settings"
+private const val AboutSettingsRoute = "about_settings"
 
 @Composable
 fun AppNavGraph(container: AppContainer) {
@@ -216,6 +218,7 @@ fun AppNavGraph(container: AppContainer) {
                 onOpenDisplaySettings = { navController.navigate(DisplaySettingsRoute) },
                 onOpenKnowledgeSettings = { navController.navigate(KnowledgeSettingsRoute) },
                 onOpenExperimentalSettings = { navController.navigate(ExperimentalSettingsRoute) },
+                onOpenAbout = { navController.navigate(AboutSettingsRoute) },
                 onOpenAiDebugLog = { navController.navigate(AiDebugLogRoute) },
                 onBack = { navController.popBackStack() }
             )
@@ -266,6 +269,17 @@ fun AppNavGraph(container: AppContainer) {
         ) {
             ExperimentalSettingsScreen(
                 dataStore = container.settingsDataStore,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = AboutSettingsRoute,
+            enterTransition = { settingsEnter() },
+            exitTransition = { settingsExit() },
+            popEnterTransition = { settingsPopEnter() },
+            popExitTransition = { settingsPopExit() }
+        ) {
+            AboutSettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }

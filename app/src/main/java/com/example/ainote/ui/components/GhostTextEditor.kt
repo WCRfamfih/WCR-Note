@@ -1,14 +1,11 @@
 package com.example.ainote.ui.components
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,15 +20,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +54,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @Composable
 fun GhostTextEditor(
@@ -93,7 +94,9 @@ fun GhostTextEditor(
     var viewportHeightPx by remember { mutableIntStateOf(0) }
     var viewportWidthPx by remember { mutableIntStateOf(0) }
     var paginationHeightPx by remember { mutableIntStateOf(0) }
-    var horizontalDragTotal by remember { mutableIntStateOf(0) }
+    var horizontalDragOffsetPx by remember { mutableFloatStateOf(0f) }
+    val pageSlideOffsetPx = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
     val pageScrollState = rememberScrollState()
     val editorPresentation = remember(value.text, textStyle, renderMarkdown, previewRange, previewStyle) {
         buildEditorPresentation(
@@ -131,6 +134,37 @@ fun GhostTextEditor(
     }
     val pageCount = pageRanges.size.coerceAtLeast(1)
     val safePage = currentPage.coerceIn(0, pageCount - 1)
+    val settlePage: () -> Unit = remember(safePage, pageCount, viewportWidthPx, horizontalDragOffsetPx) {
+        {
+            val threshold = viewportWidthPx * 0.22f
+            val targetPage = when {
+                horizontalDragOffsetPx <= -threshold && safePage < pageCount - 1 -> safePage + 1
+                horizontalDragOffsetPx >= threshold && safePage > 0 -> safePage - 1
+                else -> safePage
+            }
+            val targetOffset = when {
+                targetPage > safePage -> -viewportWidthPx.toFloat()
+                targetPage < safePage -> viewportWidthPx.toFloat()
+                else -> 0f
+            }
+            coroutineScope.launch {
+                pageSlideOffsetPx.animateTo(
+                    targetValue = targetOffset,
+                    animationSpec = tween(durationMillis = if (targetPage == safePage) 180 else 220)
+                )
+                if (targetPage != safePage) {
+                    onCurrentPageChange(targetPage)
+                }
+                horizontalDragOffsetPx = 0f
+                pageSlideOffsetPx.snapTo(0f)
+            }
+        }
+    }
+    val dragState = rememberDraggableState { delta ->
+        val minOffset = if (safePage < pageCount - 1) -viewportWidthPx.toFloat() else 0f
+        val maxOffset = if (safePage > 0) viewportWidthPx.toFloat() else 0f
+        horizontalDragOffsetPx = (horizontalDragOffsetPx + delta).coerceIn(minOffset, maxOffset)
+    }
     val activeRange = pageRanges.getOrElse(safePage) { 0 to value.text.length }
     val localPreviewRange = previewRange?.let { range ->
         val start = maxOf(range.min, activeRange.first)
@@ -175,6 +209,10 @@ fun GhostTextEditor(
         }
     }
 
+    LaunchedEffect(horizontalDragOffsetPx) {
+        pageSlideOffsetPx.snapTo(horizontalDragOffsetPx)
+    }
+
     val plainCopyToolbar = remember(parentTextToolbar, clipboardManager, value, renderMarkdown) {
         PlainMarkdownCopyToolbar(parentTextToolbar, clipboardManager) {
             if (renderMarkdown) value.selectedTextWithoutMarkdown() else null
@@ -195,45 +233,66 @@ fun GhostTextEditor(
                         paginationHeightPx = viewportHeightPx
                     }
                 }
-                .pointerInput(pagedMode, safePage, pageCount) {
-                    if (!pagedMode) return@pointerInput
-                    detectHorizontalDragGestures(
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            horizontalDragTotal += dragAmount.toInt()
-                        },
-                        onDragEnd = {
-                            val threshold = 72
-                            when {
-                                horizontalDragTotal <= -threshold && safePage < pageCount - 1 -> onCurrentPageChange(safePage + 1)
-                                horizontalDragTotal >= threshold && safePage > 0 -> onCurrentPageChange(safePage - 1)
-                            }
-                            horizontalDragTotal = 0
-                        },
-                        onDragCancel = { horizontalDragTotal = 0 }
-                    )
-                }
+                .draggable(
+                    enabled = pagedMode,
+                    orientation = Orientation.Horizontal,
+                    state = dragState,
+                    onDragStopped = { settlePage() }
+                )
                 .padding(16.dp)
         ) {
-            val editorModifier = Modifier
-                .fillMaxWidth()
-                .then(if (allowCurrentPageVerticalScroll) Modifier.verticalScroll(pageScrollState) else Modifier.fillMaxSize())
-                .onFocusChanged { onFocusChanged(it.isFocused) }
+            fun pageValueFor(range: Pair<Int, Int>): TextFieldValue {
+                val pageLength = range.second - range.first
+                val localSelection = TextRange(
+                    start = (value.selection.start - range.first).coerceIn(0, pageLength),
+                    end = (value.selection.end - range.first).coerceIn(0, pageLength)
+                )
+                return value.copy(
+                    text = value.text.substring(range.first, range.second),
+                    selection = localSelection
+                )
+            }
 
-            val editorContent: @Composable () -> Unit = {
+            @Composable
+            fun PageField(
+                pageIndex: Int,
+                horizontalOffsetPx: Float,
+                enableVerticalScroll: Boolean
+            ) {
+                val range = pageRanges.getOrElse(pageIndex) { 0 to value.text.length }
+                val pageFieldValue = remember(value, range) { pageValueFor(range) }
+                val pagePreviewRange = previewRange?.let { rangeValue ->
+                    val start = maxOf(rangeValue.min, range.first)
+                    val end = minOf(rangeValue.max, range.second)
+                    if (start < end) TextRange(start - range.first, end - range.first) else null
+                }
+                val transformation = remember(textStyle, renderMarkdown, pagePreviewRange, previewStyle) {
+                    editorVisualTransformation(
+                        textStyle = textStyle,
+                        renderMarkdown = renderMarkdown,
+                        previewRange = pagePreviewRange,
+                        previewStyle = previewStyle
+                    )
+                }
+                val editorModifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (enableVerticalScroll) Modifier.verticalScroll(pageScrollState) else Modifier.fillMaxSize())
+                    .onFocusChanged { onFocusChanged(it.isFocused) }
+                    .graphicsLayer { translationX = horizontalOffsetPx }
+
                 BasicTextField(
-                    value = pageValue,
+                    value = pageFieldValue,
                     onValueChange = { localValue ->
-                        val nextText = value.text.replaceRange(activeRange.first, activeRange.second, localValue.text)
+                        val nextText = value.text.replaceRange(range.first, range.second, localValue.text)
                         val nextSelection = TextRange(
-                            start = (activeRange.first + localValue.selection.start).coerceIn(0, nextText.length),
-                            end = (activeRange.first + localValue.selection.end).coerceIn(0, nextText.length)
+                            start = (range.first + localValue.selection.start).coerceIn(0, nextText.length),
+                            end = (range.first + localValue.selection.end).coerceIn(0, nextText.length)
                         )
                         onValueChange(localValue.copy(text = nextText, selection = nextSelection))
                     },
                     modifier = editorModifier,
                     textStyle = textStyle,
-                    visualTransformation = visualTransformation,
+                    visualTransformation = transformation,
                     cursorBrush = SolidColor(colorScheme.primary),
                     decorationBox = { innerTextField ->
                         Box(modifier = Modifier.fillMaxSize()) {
@@ -250,35 +309,36 @@ fun GhostTextEditor(
             }
 
             if (pagedMode && animatePageTransitions) {
-                AnimatedContent(
-                    targetState = safePage,
-                    transitionSpec = {
-                        if (targetState > initialState) {
-                            slideInHorizontally(
-                                animationSpec = tween(220),
-                                initialOffsetX = { it }
-                            ) + fadeIn(animationSpec = tween(220)) togetherWith
-                                slideOutHorizontally(
-                                    animationSpec = tween(220),
-                                    targetOffsetX = { -it }
-                                ) + fadeOut(animationSpec = tween(180))
-                        } else {
-                            slideInHorizontally(
-                                animationSpec = tween(220),
-                                initialOffsetX = { -it }
-                            ) + fadeIn(animationSpec = tween(220)) togetherWith
-                                slideOutHorizontally(
-                                    animationSpec = tween(220),
-                                    targetOffsetX = { it }
-                                ) + fadeOut(animationSpec = tween(180))
+                val currentOffset = pageSlideOffsetPx.value
+                Box(modifier = Modifier.fillMaxSize()) {
+                    PageField(
+                        pageIndex = safePage,
+                        horizontalOffsetPx = currentOffset,
+                        enableVerticalScroll = allowCurrentPageVerticalScroll
+                    )
+                    when {
+                        currentOffset < 0f && safePage < pageCount - 1 -> {
+                            PageField(
+                                pageIndex = safePage + 1,
+                                horizontalOffsetPx = viewportWidthPx + currentOffset,
+                                enableVerticalScroll = false
+                            )
                         }
-                    },
-                    label = "editor_page_transition"
-                ) {
-                    editorContent()
+                        currentOffset > 0f && safePage > 0 -> {
+                            PageField(
+                                pageIndex = safePage - 1,
+                                horizontalOffsetPx = -viewportWidthPx + currentOffset,
+                                enableVerticalScroll = false
+                            )
+                        }
+                    }
                 }
             } else {
-                editorContent()
+                PageField(
+                    pageIndex = safePage,
+                    horizontalOffsetPx = 0f,
+                    enableVerticalScroll = allowCurrentPageVerticalScroll
+                )
             }
         }
     }

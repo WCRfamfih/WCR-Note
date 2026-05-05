@@ -74,6 +74,7 @@ fun SettingsScreen(
     onOpenDisplaySettings: () -> Unit,
     onOpenKnowledgeSettings: () -> Unit,
     onOpenExperimentalSettings: () -> Unit,
+    onOpenAbout: () -> Unit,
     onOpenAiDebugLog: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -186,6 +187,8 @@ fun SettingsScreen(
                     )
                 }
             }
+            Spacer(Modifier.height(20.dp))
+            SettingsEntry("关于", "版本、作者、MIT 许可和 GitHub 仓库地址。", onOpenAbout)
         }
     }
 }
