@@ -134,12 +134,13 @@ fun GhostTextEditor(
     }
     val pageCount = pageRanges.size.coerceAtLeast(1)
     val safePage = currentPage.coerceIn(0, pageCount - 1)
-    val settlePage: () -> Unit = remember(safePage, pageCount, viewportWidthPx, horizontalDragOffsetPx) {
+    val settlePage: () -> Unit = remember(safePage, pageCount, viewportWidthPx) {
         {
+            val currentOffset = pageSlideOffsetPx.value
             val threshold = viewportWidthPx * 0.22f
             val targetPage = when {
-                horizontalDragOffsetPx <= -threshold && safePage < pageCount - 1 -> safePage + 1
-                horizontalDragOffsetPx >= threshold && safePage > 0 -> safePage - 1
+                currentOffset <= -threshold && safePage < pageCount - 1 -> safePage + 1
+                currentOffset >= threshold && safePage > 0 -> safePage - 1
                 else -> safePage
             }
             val targetOffset = when {
@@ -164,6 +165,9 @@ fun GhostTextEditor(
         val minOffset = if (safePage < pageCount - 1) -viewportWidthPx.toFloat() else 0f
         val maxOffset = if (safePage > 0) viewportWidthPx.toFloat() else 0f
         horizontalDragOffsetPx = (horizontalDragOffsetPx + delta).coerceIn(minOffset, maxOffset)
+        coroutineScope.launch {
+            pageSlideOffsetPx.snapTo(horizontalDragOffsetPx)
+        }
     }
     val activeRange = pageRanges.getOrElse(safePage) { 0 to value.text.length }
     val localPreviewRange = previewRange?.let { range ->
@@ -207,10 +211,6 @@ fun GhostTextEditor(
         if (allowCurrentPageVerticalScroll) {
             pageScrollState.scrollTo(0)
         }
-    }
-
-    LaunchedEffect(horizontalDragOffsetPx) {
-        pageSlideOffsetPx.snapTo(horizontalDragOffsetPx)
     }
 
     val plainCopyToolbar = remember(parentTextToolbar, clipboardManager, value, renderMarkdown) {
