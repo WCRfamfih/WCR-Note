@@ -696,8 +696,7 @@ class NoteEditorViewModel(
         proposed: TextFieldValue
     ): TextFieldValue {
         if (proposed.text == current.text) return proposed
-        val lockedPrefix = savedStateHandle.get<String>(KEY_MARATHON_LOCKED_PREFIX).orEmpty()
-        val isValid = proposed.text.length >= lockedPrefix.length && proposed.text.startsWith(lockedPrefix)
+        val isValid = proposed.text.length >= current.text.length && proposed.text.startsWith(current.text)
         return if (isValid) {
             proposed
         } else {
