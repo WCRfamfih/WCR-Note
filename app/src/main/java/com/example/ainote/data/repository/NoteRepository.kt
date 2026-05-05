@@ -14,7 +14,8 @@ import kotlinx.coroutines.flow.map
 
 class NoteRepository(
     private val dao: NoteDao,
-    private val backupRepository: DocumentBackupRepository? = null
+    private val backupRepository: DocumentBackupRepository? = null,
+    private val coverImageStorage: CoverImageStorage? = null
 ) {
     fun observeNotes(contentType: NoteContentType = NoteContentType.Note): Flow<List<Note>> {
         return dao.observeNotesByType(contentType.storageValue).map { notes -> notes.map { it.toDomain() } }
@@ -115,7 +116,18 @@ class NoteRepository(
     }
 
     suspend fun updateNoteCover(id: Long, coverImageUri: String?) {
-        dao.updateCover(id, coverImageUri?.trim().orEmpty(), System.currentTimeMillis())
+        val resolvedUri = coverImageUri
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { source ->
+                if (source.startsWith("file:/")) {
+                    source
+                } else {
+                    coverImageStorage?.importToLocalStorage(source) ?: source
+                }
+            }
+            .orEmpty()
+        dao.updateCover(id, resolvedUri, System.currentTimeMillis())
     }
 
     suspend fun importBackupsFromDirectory(directoryUri: String): Int {

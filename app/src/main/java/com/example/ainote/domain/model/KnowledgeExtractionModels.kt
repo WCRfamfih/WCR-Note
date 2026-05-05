@@ -4,7 +4,9 @@ data class KnowledgeExtractionRequest(
     val noteId: Long? = null,
     val material: String,
     val instruction: String,
-    val targetKnowledgeId: Long? = null
+    val targetKnowledgeId: Long? = null,
+    val targetKnowledgeTitle: String? = null,
+    val targetKnowledgeContent: String? = null
 )
 
 data class KnowledgeExtractionDraft(

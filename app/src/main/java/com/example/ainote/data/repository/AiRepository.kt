@@ -105,7 +105,18 @@ class AiRepository(
         val settings = settingsDataStore.settings.first()
         val preset = settings.presetForUsage(AiPresetUsage.AiTool)
         val repository = noteRepository
-        val targetKnowledge = request.targetKnowledgeId?.let { targetId -> repository?.getKnowledgeEntry(targetId) }
+        val targetKnowledge = when {
+            !request.targetKnowledgeTitle.isNullOrBlank() || !request.targetKnowledgeContent.isNullOrBlank() -> {
+                Note(
+                    id = request.targetKnowledgeId ?: 0L,
+                    title = request.targetKnowledgeTitle.orEmpty(),
+                    content = request.targetKnowledgeContent.orEmpty(),
+                    createdAt = 0L,
+                    updatedAt = 0L
+                )
+            }
+            else -> request.targetKnowledgeId?.let { targetId -> repository?.getKnowledgeEntry(targetId) }
+        }
         AiDebugLogStore.add(
             title = "Knowledge extraction request",
             detail = """
@@ -114,6 +125,8 @@ class AiRepository(
                 fake=${preset.shouldUseFake()}
                 noteId=${request.noteId}
                 targetKnowledgeId=${request.targetKnowledgeId}
+                targetKnowledgeTitle=${request.targetKnowledgeTitle.orEmpty()}
+                targetKnowledgeContentLength=${request.targetKnowledgeContent?.length ?: 0}
                 instruction=${request.instruction}
                 materialLength=${request.material.length}
             """.trimIndent()

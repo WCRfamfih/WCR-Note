@@ -142,14 +142,19 @@ class KnowledgeExtractionTaskViewModel(
             taskState.update { it.copy(errorMessage = "\u6ca1\u6709\u53ef\u7528\u7684\u6587\u672c\u6750\u6599\u3002") }
             return
         }
-        val request = KnowledgeExtractionRequest(
-            noteId = noteId,
-            material = state.sourceMaterial,
-            instruction = trimmedInstruction,
-            targetKnowledgeId = state.selectedTarget?.id
-        )
         taskState.update { it.copy(sending = true, errorMessage = null, statusMessage = null, draft = null) }
         viewModelScope.launch {
+            val targetKnowledge = state.selectedTarget?.id?.let { targetId ->
+                noteRepository.getKnowledgeEntry(targetId)
+            }
+            val request = KnowledgeExtractionRequest(
+                noteId = noteId,
+                material = state.sourceMaterial,
+                instruction = trimmedInstruction,
+                targetKnowledgeId = state.selectedTarget?.id,
+                targetKnowledgeTitle = targetKnowledge?.title,
+                targetKnowledgeContent = targetKnowledge?.content
+            )
             runCatching { aiRepository.extractKnowledge(request) }
                 .onSuccess { draft ->
                     taskState.update {
