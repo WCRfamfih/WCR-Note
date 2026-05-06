@@ -46,8 +46,14 @@ object NoteImageExporter {
             paged = paged
         )
         val directory = File(context.cacheDir, "shared_images").apply { mkdirs() }
+        val pageDigits = bitmaps.size.toString().length.coerceAtLeast(2)
         val files = bitmaps.mapIndexed { index, bitmap ->
-            val fileName = if (bitmaps.size == 1) "$baseFileName.png" else "$baseFileName-p${index + 1}.png"
+            val fileName = if (bitmaps.size == 1) {
+                "$baseFileName.png"
+            } else {
+                val pageLabel = (index + 1).toString().padStart(pageDigits, '0')
+                "$baseFileName-p$pageLabel.png"
+            }
             val file = File(directory, fileName)
             file.outputStream().use { output ->
                 check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) { "\u56fe\u7247\u5199\u5165\u5931\u8d25" }
@@ -186,8 +192,8 @@ object NoteImageExporter {
             canvas.restore()
             return listOf(bitmap)
         }
-        val pageLineRanges = computePagedLineRanges(bodyLayout, firstBodyViewport, bodyViewport)
-        return pageLineRanges.mapIndexed { pageIndex, lineRange ->
+        val pageSlices = computePagedLineSlices(bodyLayout, firstBodyViewport, bodyViewport)
+        return pageSlices.mapIndexed { pageIndex, pageSlice ->
             val bitmap = createBitmap(width, pageHeight)
             val canvas = Canvas(bitmap)
             canvas.drawColor(backgroundColor)
@@ -200,18 +206,14 @@ object NoteImageExporter {
                     canvas = canvas,
                     layout = bodyLayout,
                     bodyWidth = bodyWidth,
-                    startLine = lineRange.first,
-                    endLine = lineRange.last,
-                    viewportHeight = firstBodyViewport
+                    pageSlice = pageSlice
                 )
             } else {
                 drawLayoutPage(
                     canvas = canvas,
                     layout = bodyLayout,
                     bodyWidth = bodyWidth,
-                    startLine = lineRange.first,
-                    endLine = lineRange.last,
-                    viewportHeight = bodyViewport
+                    pageSlice = pageSlice
                 )
             }
             canvas.restore()
@@ -232,42 +234,48 @@ object NoteImageExporter {
             .build()
     }
 
-    private fun computePagedLineRanges(
+    private fun computePagedLineSlices(
         layout: StaticLayout,
         firstViewportHeight: Int,
         otherViewportHeight: Int
-    ): List<IntRange> {
-        if (layout.lineCount == 0) return listOf(0..0)
-        val ranges = mutableListOf<IntRange>()
+    ): List<PageSlice> {
+        if (layout.lineCount == 0) return listOf(PageSlice(0, 0, firstViewportHeight))
+        val slices = mutableListOf<PageSlice>()
         var startLine = 0
         while (startLine < layout.lineCount) {
-            val viewportHeight = if (ranges.isEmpty()) firstViewportHeight else otherViewportHeight
+            val viewportHeight = if (slices.isEmpty()) firstViewportHeight else otherViewportHeight
             val pageTop = layout.getLineTop(startLine)
-            var endLine = startLine
-            while (endLine < layout.lineCount) {
-                val bottom = layout.getLineBottom(endLine)
-                if (bottom - pageTop > viewportHeight && endLine > startLine) break
-                if (bottom - pageTop > viewportHeight) break
-                endLine++
+            var endExclusive = startLine + 1
+            while (endExclusive < layout.lineCount) {
+                val nextTop = layout.getLineTop(endExclusive)
+                if (nextTop - pageTop > viewportHeight) break
+                endExclusive++
             }
-            val lastLine = if (endLine == startLine) startLine else endLine - 1
-            ranges += startLine..lastLine
-            startLine = lastLine + 1
+            val lastLine = (endExclusive - 1).coerceAtLeast(startLine)
+            val pageBottom = if (endExclusive < layout.lineCount) {
+                layout.getLineTop(endExclusive)
+            } else {
+                layout.height
+            }
+            slices += PageSlice(
+                startLine = startLine,
+                endLine = lastLine,
+                clipHeight = (pageBottom - pageTop).coerceAtMost(viewportHeight).coerceAtLeast(1)
+            )
+            startLine = endExclusive
         }
-        return ranges
+        return slices
     }
 
     private fun drawLayoutPage(
         canvas: Canvas,
         layout: StaticLayout,
         bodyWidth: Int,
-        startLine: Int,
-        endLine: Int,
-        viewportHeight: Int
+        pageSlice: PageSlice
     ) {
-        val top = layout.getLineTop(startLine)
+        val top = layout.getLineTop(pageSlice.startLine)
         canvas.save()
-        canvas.clipRect(0, 0, bodyWidth, viewportHeight)
+        canvas.clipRect(0, 0, bodyWidth, pageSlice.clipHeight)
         canvas.translate(0f, -top.toFloat())
         layout.draw(canvas)
         canvas.restore()
@@ -394,3 +402,9 @@ data class ExportedNoteImage(
     val primaryUri: Uri get() = uris.first()
     val primaryFileName: String get() = fileNames.first()
 }
+
+private data class PageSlice(
+    val startLine: Int,
+    val endLine: Int,
+    val clipHeight: Int
+)
