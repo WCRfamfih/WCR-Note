@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.text.Layout
+import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.StaticLayout
@@ -204,16 +205,24 @@ object NoteImageExporter {
                 canvas.translate(0f, titleLayout.height + titleSpacing.toFloat())
                 drawLayoutPage(
                     canvas = canvas,
-                    layout = bodyLayout,
-                    bodyWidth = bodyWidth,
-                    pageSlice = pageSlice
+                    pageLayout = buildPageLayout(
+                        sourceLayout = bodyLayout,
+                        pageSlice = pageSlice,
+                        paint = bodyPaint,
+                        bodyWidth = bodyWidth,
+                        spacingMultiplier = bodyLineSpacingMultiplier
+                    )
                 )
             } else {
                 drawLayoutPage(
                     canvas = canvas,
-                    layout = bodyLayout,
-                    bodyWidth = bodyWidth,
-                    pageSlice = pageSlice
+                    pageLayout = buildPageLayout(
+                        sourceLayout = bodyLayout,
+                        pageSlice = pageSlice,
+                        paint = bodyPaint,
+                        bodyWidth = bodyWidth,
+                        spacingMultiplier = bodyLineSpacingMultiplier
+                    )
                 )
             }
             canvas.restore()
@@ -239,7 +248,7 @@ object NoteImageExporter {
         firstViewportHeight: Int,
         otherViewportHeight: Int
     ): List<PageSlice> {
-        if (layout.lineCount == 0) return listOf(PageSlice(0, 0, firstViewportHeight))
+        if (layout.lineCount == 0) return listOf(PageSlice(0, 0, 0, 0))
         val slices = mutableListOf<PageSlice>()
         var startLine = 0
         while (startLine < layout.lineCount) {
@@ -247,38 +256,39 @@ object NoteImageExporter {
             val pageTop = layout.getLineTop(startLine)
             var endExclusive = startLine + 1
             while (endExclusive < layout.lineCount) {
-                val nextTop = layout.getLineTop(endExclusive)
-                if (nextTop - pageTop > viewportHeight) break
+                val lineBottom = layout.getLineBottom(endExclusive - 1)
+                if (lineBottom - pageTop > viewportHeight) break
                 endExclusive++
-            }
-            val lastLine = (endExclusive - 1).coerceAtLeast(startLine)
-            val pageBottom = if (endExclusive < layout.lineCount) {
-                layout.getLineTop(endExclusive)
-            } else {
-                layout.height
             }
             slices += PageSlice(
                 startLine = startLine,
-                endLine = lastLine,
-                clipHeight = (pageBottom - pageTop).coerceAtMost(viewportHeight).coerceAtLeast(1)
+                endLineExclusive = endExclusive,
+                startOffset = layout.getLineStart(startLine),
+                endOffset = layout.getLineEnd(endExclusive - 1)
             )
             startLine = endExclusive
         }
         return slices
     }
 
+    private fun buildPageLayout(
+        sourceLayout: StaticLayout,
+        pageSlice: PageSlice,
+        paint: TextPaint,
+        bodyWidth: Int,
+        spacingMultiplier: Float
+    ): StaticLayout {
+        val pageText = SpannableString(
+            sourceLayout.text.subSequence(pageSlice.startOffset, pageSlice.endOffset)
+        )
+        return staticLayout(pageText, paint, bodyWidth, spacingMultiplier)
+    }
+
     private fun drawLayoutPage(
         canvas: Canvas,
-        layout: StaticLayout,
-        bodyWidth: Int,
-        pageSlice: PageSlice
+        pageLayout: StaticLayout
     ) {
-        val top = layout.getLineTop(pageSlice.startLine)
-        canvas.save()
-        canvas.clipRect(0, 0, bodyWidth, pageSlice.clipHeight)
-        canvas.translate(0f, -top.toFloat())
-        layout.draw(canvas)
-        canvas.restore()
+        pageLayout.draw(canvas)
     }
 
     private fun loadTypeface(
@@ -405,6 +415,7 @@ data class ExportedNoteImage(
 
 private data class PageSlice(
     val startLine: Int,
-    val endLine: Int,
-    val clipHeight: Int
+    val endLineExclusive: Int,
+    val startOffset: Int,
+    val endOffset: Int
 )

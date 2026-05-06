@@ -280,6 +280,7 @@ fun AppNavGraph(container: AppContainer) {
             popExitTransition = { settingsPopExit() }
         ) {
             AboutSettingsScreen(
+                updateRepository = container.appUpdateRepository,
                 onBack = { navController.popBackStack() }
             )
         }
