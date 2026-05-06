@@ -4,8 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.NetworkOnMainThreadException
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -49,10 +52,12 @@ class AppUpdateRepository(
     }
 
     @Throws(IOException::class)
-    suspend fun fetchLatestRelease(): GitHubReleaseInfo {
+    suspend fun fetchLatestRelease(): GitHubReleaseInfo = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(LatestReleaseApiUrl)
             .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .header("User-Agent", "WCR-Note-Updater")
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
@@ -69,7 +74,7 @@ class AppUpdateRepository(
                     assetJson.optString("name").endsWith(".apk", ignoreCase = true)
                 }
                 ?: throw IOException("最新版本未找到可下载的 APK。")
-            return GitHubReleaseInfo(
+            GitHubReleaseInfo(
                 versionName = json.optString("tag_name").ifBlank { json.optString("name") }.trim().trimStart('v', 'V'),
                 releaseUrl = json.optString("html_url"),
                 body = json.optString("body"),
@@ -86,13 +91,14 @@ class AppUpdateRepository(
     suspend fun downloadReleaseApk(
         release: GitHubReleaseInfo,
         onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit
-    ): File {
+    ): File = withContext(Dispatchers.IO) {
         val targetDirectory = File(context.cacheDir, "update_apks").apply { mkdirs() }
         val safeVersion = release.versionName.ifBlank { "latest" }.replace(Regex("[^0-9A-Za-z._-]"), "_")
         val targetFile = File(targetDirectory, "WCR-Note-$safeVersion.apk")
         val request = Request.Builder()
             .url(release.asset.downloadUrl)
             .header("Accept", "application/octet-stream")
+            .header("User-Agent", "WCR-Note-Updater")
             .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
@@ -115,7 +121,7 @@ class AppUpdateRepository(
                 }
             }
             onProgress(downloadedBytes, totalBytes)
-            return targetFile
+            targetFile
         }
     }
 
@@ -141,7 +147,8 @@ class AppUpdateRepository(
 
     fun formatNetworkError(error: Throwable): String {
         return when (error) {
-            is UnknownHostException -> "无法连接 GitHub，请检查网络。"
+            is NetworkOnMainThreadException -> "更新请求误跑在主线程，请重试。"
+            is UnknownHostException -> "无法连接 GitHub，请检查网络或代理。"
             is SocketTimeoutException -> "连接 GitHub 超时，请稍后重试。"
             is IOException -> error.message ?: "网络请求失败。"
             else -> error.message ?: "更新失败。"
